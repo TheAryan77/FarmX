@@ -1,0 +1,13 @@
+# FasalX AI service — Python 3.12
+#
+# Scaffold slice only. The ML stack locked in CLAUDE.md (pandas, scikit-learn,
+# XGBoost, OR-Tools) is added in the sessions that actually use it:
+#   Session 7  — pandas, scikit-learn, xgboost   (price prediction)
+#   Session 8  — numpy                           (match scoring)
+#   Session 10 — ortools                         (route optimisation)
+
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+pydantic==2.11.7
+pydantic-settings==2.10.1
+python-dotenv==1.1.1

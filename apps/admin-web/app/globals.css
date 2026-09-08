@@ -1,0 +1,5 @@
+@import "../../../packages/ui/src/styles/globals.css";
+
+/* Tailwind v4 scans these paths for utility classes. */
+@source "../app";
+@source "../../../packages/ui/src";

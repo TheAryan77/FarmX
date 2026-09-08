@@ -1,0 +1,17 @@
+// FasalX data model.
+//
+// CLAUDE.md: PostgreSQL is the source of truth. Polygon stores trust state only.
+// Money is Int (whole rupees). Quantity is Decimal(10,2) (quintals).
+// lat/lng are plain Float columns — no PostGIS, haversine is done in TS/SQL.
+//
+// Models arrive in session 2. Datasource + generator only for the scaffold slice.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

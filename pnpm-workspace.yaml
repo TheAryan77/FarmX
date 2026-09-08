@@ -1,0 +1,19 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "services/api"
+  - "blockchain"
+
+# Only these are allowed to run install scripts.
+#
+# Deliberately NOT listed: keccak, secp256k1, bufferutil, utf-8-validate.
+# Their node-gyp builds fail because this repo's absolute path contains an
+# apostrophe ("Devansh's SIH"), which breaks the shell command node-gyp
+# generates. All four ship pure-JS fallbacks, so skipping the native build
+# costs a little hashing speed and nothing else.
+onlyBuiltDependencies:
+  - "@prisma/engines"
+  - "@tailwindcss/oxide"
+  - esbuild
+  - prisma
+  - sharp

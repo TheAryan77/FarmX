@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# next
+.next/
+out/
+next-env.d.ts
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+services/ai/models/*.json
+services/ai/models/*.pkl
+
+# hardhat / blockchain
+artifacts/
+cache/
+typechain-types/
+blockchain/deployments/
+
+# prisma
+prisma/migrations/dev.db*
+
+# os / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

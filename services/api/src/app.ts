@@ -2,14 +2,20 @@ import cors from "cors";
 import express, { type Express } from "express";
 
 import { env } from "./env.js";
+import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { authRouter } from "./routes/auth.routes.js";
 
 /**
  * CLAUDE.md: every route returns `{ data: T }` or `{ error: { code, message } }`.
  * Route handlers stay thin — logic lives in service modules.
+ *
+ * Express 5 forwards rejected promises from async handlers to the error
+ * middleware, so services can just throw HttpError.
  */
 export function createApp(): Express {
   const app = express();
 
+  app.disable("x-powered-by");
   app.use(cors({ origin: env.corsOrigins, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
 
@@ -17,9 +23,10 @@ export function createApp(): Express {
     res.json({ data: { status: "ok", ts: new Date().toISOString() } });
   });
 
-  app.use((_req, res) => {
-    res.status(404).json({ error: { code: "NOT_FOUND", message: "Route not found" } });
-  });
+  app.use("/auth", authRouter);
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 }

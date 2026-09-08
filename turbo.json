@@ -2,14 +2,17 @@
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
   "globalEnv": [
-    "NODE_ENV",
-    "DATABASE_URL",
-    "JWT_SECRET",
     "AI_SERVICE_URL",
-    "NEXT_PUBLIC_API_URL",
     "AMOY_RPC_URL",
+    "API_URL",
+    "DATABASE_URL",
+    "DEPLOYER_PRIVATE_KEY",
     "ESCROW_CONTRACT_ADDRESS",
-    "DEPLOYER_PRIVATE_KEY"
+    "JWT_EXPIRES_IN",
+    "JWT_SECRET",
+    "NEXT_PUBLIC_API_URL",
+    "NODE_ENV",
+    "OTP_ACCEPT_ANY"
   ],
   "tasks": {
     "dev": {
@@ -17,17 +20,27 @@
       "persistent": true
     },
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ]
     },
     "@fasalx/blockchain#build": {
       "cache": false
     },
     "lint": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "clean": {
       "cache": false

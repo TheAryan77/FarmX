@@ -1,0 +1,77 @@
+"use server";
+
+import type { AuthUser, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
+import { requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+
+import { apiCall, ApiRequestError } from "@/lib/api";
+import { APP_ROLE, clearSessionToken, setSessionToken } from "@/lib/session";
+
+export interface ActionResult<T> {
+  ok: boolean;
+  error?: string;
+  data?: T;
+}
+
+function toMessage(err: unknown): string {
+  if (err instanceof ApiRequestError) return err.message;
+  return "Something went wrong — please try again";
+}
+
+export async function requestOtpAction(phone: string): Promise<ActionResult<RequestOtpResult>> {
+  // Validated with the same shared schema the API uses, so the farmer sees the
+  // same wording without a round trip.
+  const parsed = requestOtpSchema.safeParse({ phone });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the number" };
+  }
+
+  try {
+    const data = await apiCall<RequestOtpResult>("/auth/request-otp", {
+      method: "POST",
+      body: parsed.data,
+      auth: false,
+    });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function verifyOtpAction(
+  phone: string,
+  otp: string,
+): Promise<ActionResult<AuthUser>> {
+  const parsed = verifyOtpSchema.safeParse({ phone, otp });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the code" };
+  }
+
+  try {
+    const { token, user } = await apiCall<VerifyOtpResult>("/auth/verify-otp", {
+      method: "POST",
+      body: parsed.data,
+      auth: false,
+    });
+
+    // Role gate at the app boundary: this app signs in FARMER accounts only.
+    // Without this, a buyer could authenticate here and land on a dashboard
+    // built for someone else.
+    if (user.role !== APP_ROLE) {
+      return {
+        ok: false,
+        error:
+          `${phone} is a ${user.role.toLowerCase()} account. ` +
+          `Open the buyer portal on port 3001 to sign in as Buyer.`,
+      };
+    }
+
+    await setSessionToken(token);
+    return { ok: true, data: user };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function signOutAction(): Promise<void> {
+  await clearSessionToken();
+}

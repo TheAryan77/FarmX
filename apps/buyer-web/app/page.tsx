@@ -1,7 +1,7 @@
-export default function Page() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-8">
-      <h1 className="text-3xl font-bold tracking-tight">FasalX Buyer</h1>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+import { getSessionToken } from "@/lib/session";
+
+export default async function Page() {
+  redirect((await getSessionToken()) ? "/dashboard" : "/login");
 }

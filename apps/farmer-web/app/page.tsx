@@ -1,13 +1,7 @@
-import { Card, CardContent } from "@fasalx/ui";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-md items-center justify-center p-4">
-      <Card className="w-full">
-        <CardContent>
-          <h1 className="text-3xl font-bold tracking-tight">FasalX Farmer</h1>
-        </CardContent>
-      </Card>
-    </main>
-  );
+import { getSessionToken } from "@/lib/session";
+
+export default async function Page() {
+  redirect((await getSessionToken()) ? "/dashboard" : "/login");
 }

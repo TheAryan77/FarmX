@@ -73,6 +73,36 @@ curve (April harvest glut, Dec–Jan lean-season peak) ending at ₹2,380.
 
 Other scripts: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm clean`.
 
+## Auth
+
+Mock OTP + JWT + RBAC. Roles: `FARMER | BUYER | FPO | ADMIN`.
+
+| Route                   | Notes                                                        |
+| ----------------------- | ------------------------------------------------------------ |
+| `POST /auth/request-otp`| Generates a 6-digit code, logs it, returns it as `devOtp` outside production |
+| `POST /auth/verify-otp` | Any 6-digit code is accepted outside production; returns `{ token, user }` |
+| `GET  /auth/me`         | Requires `Authorization: Bearer <token>`                     |
+
+`requireAuth` and `requireRole(...roles)` are the Express middleware.
+
+**The API reads no cookies — it is bearer-token only.** Each Next app keeps its
+own httpOnly cookie (`fasalx_farmer_session`, `fasalx_buyer_session`) and
+attaches the token server-side. Two reasons:
+
+1. Cookies are scoped by domain and **ignore the port**, so `localhost:3000` and
+   `localhost:3001` share one jar. A single shared cookie name would make signing
+   into the buyer portal silently sign you out of the farmer app — and the demo
+   needs both live at once (the buyer offers, the farmer counters).
+2. A bearer API is what a future voice/IVR layer would call, with no parallel
+   business logic.
+
+The token therefore never reaches the browser: `document.cookie` is empty and no
+JWT appears in any client bundle. Each app also refuses the wrong role at its own
+boundary and says which app to use instead.
+
+Registration is deliberately not implemented — an unknown number is rejected with
+a message naming the seeded accounts.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

@@ -1,7 +1,8 @@
 "use server";
 
-import type { AuthUser, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
-import { requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+import type { AuthUser, Listing, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
+import { createListingSchema, requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+import { revalidatePath } from "next/cache";
 
 import { apiCall, ApiRequestError } from "@/lib/api";
 import { APP_ROLE, clearSessionToken, setSessionToken } from "@/lib/session";
@@ -74,4 +75,42 @@ export async function verifyOtpAction(
 
 export async function signOutAction(): Promise<void> {
   await clearSessionToken();
+}
+
+// ---------------------------------------------------------------- listings
+
+export async function createListingAction(input: {
+  crop: string;
+  grade: string;
+  quantityQuintals: string;
+  expectedPricePerQuintal: string;
+  availableFrom: string;
+}): Promise<ActionResult<Listing>> {
+  // Same shared schema the API enforces, so the farmer sees the same wording
+  // without waiting on a round trip.
+  const parsed = createListingSchema.safeParse(input);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: issue?.message ?? "Check the details you entered" };
+  }
+
+  try {
+    const listing = await apiCall<Listing>("/listings", { method: "POST", body: parsed.data });
+    revalidatePath("/listings");
+    revalidatePath("/dashboard");
+    return { ok: true, data: listing };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function deleteListingAction(id: string): Promise<ActionResult<{ id: string }>> {
+  try {
+    const data = await apiCall<{ id: string }>(`/listings/${id}`, { method: "DELETE" });
+    revalidatePath("/listings");
+    revalidatePath("/dashboard");
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
 }

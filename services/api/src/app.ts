@@ -4,6 +4,8 @@ import express, { type Express } from "express";
 import { env } from "./env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { listingRouter } from "./routes/listing.routes.js";
+import { marketRouter } from "./routes/market.routes.js";
 
 /**
  * CLAUDE.md: every route returns `{ data: T }` or `{ error: { code, message } }`.
@@ -24,6 +26,8 @@ export function createApp(): Express {
   });
 
   app.use("/auth", authRouter);
+  app.use("/listings", listingRouter);
+  app.use("/market", marketRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

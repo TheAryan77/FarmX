@@ -8,6 +8,10 @@
 
 import { z } from "zod";
 
+import { addDaysIso, istTodayIso } from "./date";
+
+// ---------------------------------------------------------------- primitives
+
 // The `error` option covers a missing or non-string value, so a client that
 // omits the field gets the same human sentence as one that mistypes it —
 // never a raw "expected string, received undefined".
@@ -23,6 +27,65 @@ export const otpSchema = z
   .trim()
   .regex(/^\d{6}$/, "Enter the 6-digit code");
 
+export const gradeSchema = z.enum(["A", "B", "C"], { error: "Choose a grade" });
+
+export const listingStatusSchema = z.enum([
+  "DRAFT",
+  "ACTIVE",
+  "RESERVED",
+  "PARTIALLY_ALLOCATED",
+  "SOLD",
+  "EXPIRED",
+  "CANCELLED",
+]);
+
+/** Stored lowercase so filters never miss on capitalisation. */
+export const cropSchema = z
+  .string({ error: "Choose a crop" })
+  .trim()
+  .toLowerCase()
+  .min(2, "Choose a crop")
+  .max(40, "Crop name is too long");
+
+/**
+ * Quantity is in QUINTALS, always — CLAUDE.md forbids mixing units anywhere in
+ * the codebase, so there is no unit field to get wrong. Two decimals, matching
+ * the Decimal(10,2) column.
+ */
+export const quantityQuintalsSchema = z
+  .coerce.number({ error: "Enter how many quintals you have" })
+  .positive("Enter how many quintals you have")
+  .max(10000, "Enter 10,000 quintals or less")
+  .multipleOf(0.01, "Use at most 2 decimal places");
+
+/** Whole rupees per quintal. Money is never a float — CLAUDE.md. */
+export const pricePerQuintalSchema = z
+  .coerce.number({ error: "Enter your expected price" })
+  .int("Enter a whole number of rupees")
+  .min(100, "That price looks too low — enter rupees per quintal")
+  .max(100000, "That price looks too high");
+
+/** Calendar date with no time component. */
+export const isoDateSchema = z
+  .string({ error: "Choose a date" })
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a date")
+  .refine((v) => !Number.isNaN(Date.parse(`${v}T00:00:00Z`)), "Choose a valid date");
+
+// Re-exported so server code has one import site; client components should
+// import from "@fasalx/validation/date" to stay clear of Zod.
+export { addDaysIso, istTodayIso } from "./date";
+
+/**
+ * Harvest availability: from yesterday to a year out. Yesterday rather than
+ * today so a few hours of clock skew never blocks a legitimate "available now".
+ */
+export const availableFromSchema = isoDateSchema
+  .refine((v) => v >= addDaysIso(istTodayIso(), -1), "That date has already passed")
+  .refine((v) => v <= addDaysIso(istTodayIso(), 365), "Choose a date within the next year");
+
+// ---------------------------------------------------------------- auth
+
 export const requestOtpSchema = z.object({
   phone: phoneSchema,
 });
@@ -34,6 +97,68 @@ export const verifyOtpSchema = z.object({
 
 export type RequestOtpInput = z.infer<typeof requestOtpSchema>;
 export type VerifyOtpInput = z.infer<typeof verifyOtpSchema>;
+
+// ---------------------------------------------------------------- listings
+
+/**
+ * The editable shape of a listing, with no defaults attached.
+ *
+ * Defaults live only on the create schema. Deriving the update schema from one
+ * that carried `.default("wheat")` made `.partial()` still emit a value, so an
+ * empty PATCH body parsed to `{ crop: "wheat" }` — it passed the
+ * "nothing to update" check and would have silently rewritten the crop.
+ */
+const listingFields = {
+  crop: cropSchema,
+  grade: gradeSchema,
+  quantityQuintals: quantityQuintalsSchema,
+  expectedPricePerQuintal: pricePerQuintalSchema,
+  availableFrom: availableFromSchema,
+  /** Omitted by the app — the pickup point defaults to the farmer's profile. */
+  village: z.string().trim().min(1).max(80).optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  notes: z.string().trim().max(500).optional(),
+};
+
+export const createListingSchema = z.object({
+  ...listingFields,
+  crop: cropSchema.default("wheat"),
+});
+
+/** Every field optional, but at least one must actually be supplied. */
+export const updateListingSchema = z
+  .object(listingFields)
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Nothing to update");
+
+export const listingFilterSchema = z.object({
+  crop: cropSchema.optional(),
+  grade: gradeSchema.optional(),
+  district: z.string().trim().min(1).max(60).optional(),
+  status: listingStatusSchema.optional(),
+  /** Hide lots below a bulk buyer's minimum. Quintals. */
+  minQuantityQuintals: quantityQuintalsSchema.optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1, "limit must be at least 1")
+    .max(100, "limit cannot be more than 100")
+    .default(50),
+  offset: z.coerce.number().int().min(0, "offset cannot be negative").default(0),
+});
+
+export const priceQuerySchema = z.object({
+  crop: cropSchema.default("wheat"),
+  district: z.string().trim().min(1).max(60).default("Karnal"),
+});
+
+export type CreateListingInput = z.infer<typeof createListingSchema>;
+export type UpdateListingInput = z.infer<typeof updateListingSchema>;
+export type ListingFilterInput = z.infer<typeof listingFilterSchema>;
+export type PriceQueryInput = z.infer<typeof priceQuerySchema>;
+
+// ---------------------------------------------------------------- helpers
 
 /** First error message for a field, for rendering next to an input. */
 export function firstFieldError(error: z.ZodError, field: string): string | undefined {

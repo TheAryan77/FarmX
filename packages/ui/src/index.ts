@@ -1,4 +1,5 @@
 export { cn } from "./lib/utils";
+export { Badge, badgeVariants } from "./components/ui/badge";
 export { Button, buttonVariants, type ButtonProps } from "./components/ui/button";
 export {
   Card,

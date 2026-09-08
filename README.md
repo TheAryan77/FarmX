@@ -103,6 +103,30 @@ boundary and says which app to use instead.
 Registration is deliberately not implemented — an unknown number is rejected with
 a message naming the seeded accounts.
 
+## Listings
+
+| Route                    | Access        | Notes                                        |
+| ------------------------ | ------------- | -------------------------------------------- |
+| `GET    /listings`       | public        | Browse; filter by crop, grade, district, min quantity |
+| `GET    /listings/mine`  | FARMER        | The signed-in farmer's own listings          |
+| `GET    /listings/:id`   | public        | Single listing                               |
+| `POST   /listings`       | FARMER        | Create                                       |
+| `PATCH  /listings/:id`   | FARMER, owner | Edit; blocked once anything is committed     |
+| `DELETE /listings/:id`   | FARMER, owner | Soft delete; blocked if quantity is reserved |
+| `GET    /market/price`   | public        | Latest PriceHistory row + 7-day change       |
+
+Quantity is **quintals everywhere** — there is no unit field to get wrong, and
+the sell form's "1 quintal = 100 kg" line is a reading aid that is never stored.
+Money is whole rupees. Both are converted once, at the serialisation boundary.
+
+Deletes are soft so any order, contract or settlement referencing a listing
+keeps its history. A listing cannot be edited once produce is committed to a
+deal, or reduced below the committed quantity.
+
+`GET /market/price` is not in the original session plan but the farmer home
+screen needs a price and apps only ever talk to the API. Session 7's
+`GET /ai/price` goes in front of it.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

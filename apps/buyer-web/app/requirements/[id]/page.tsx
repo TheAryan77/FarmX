@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
@@ -170,6 +171,7 @@ export default async function RequirementDetailPage({
                   <TableHead className="text-right">Lot value</TableHead>
                   <TableHead className="text-right">Rating</TableHead>
                   <TableHead>Ready from</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -178,7 +180,14 @@ export default async function RequirementDetailPage({
                     listing.expectedPricePerQuintal > requirement.targetPricePerQuintal;
                   return (
                     <TableRow key={listing.id}>
-                      <TableCell className="font-medium">{listing.farmer.name}</TableCell>
+                      <TableCell className="font-medium">
+                        <Link
+                          href={`/listings/${listing.id}?requirementId=${requirement.id}`}
+                          className="hover:text-primary hover:underline"
+                        >
+                          {listing.farmer.name}
+                        </Link>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">{listing.village}</TableCell>
                       <TableCell className="text-right tabular-nums">
                         {km(listing.distanceKm)}
@@ -210,6 +219,13 @@ export default async function RequirementDetailPage({
                       <TableCell className="text-muted-foreground">
                         {shortDate(listing.availableFrom)}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/listings/${listing.id}?requirementId=${requirement.id}`}>
+                            Offer
+                          </Link>
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -222,7 +238,7 @@ export default async function RequirementDetailPage({
                   <TableCell className="text-right font-bold tabular-nums">
                     {quintals(totalAvailableQuintals)}
                   </TableCell>
-                  <TableCell colSpan={5} className="text-muted-foreground">
+                  <TableCell colSpan={6} className="text-muted-foreground">
                     Needs {quintals(requirement.remainingQuintals)}
                   </TableCell>
                 </TableRow>

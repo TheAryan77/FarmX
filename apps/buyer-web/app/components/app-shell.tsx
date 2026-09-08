@@ -18,8 +18,14 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
               <Link href="/dashboard" className="font-medium hover:text-primary">
                 Requirements
               </Link>
-              <Link href="/requirements/new" className="text-muted-foreground hover:text-primary">
-                New requirement
+              <Link href="/supply" className="text-muted-foreground hover:text-primary">
+                Supply
+              </Link>
+              <Link href="/offers" className="text-muted-foreground hover:text-primary">
+                Negotiations
+              </Link>
+              <Link href="/orders" className="text-muted-foreground hover:text-primary">
+                Orders
               </Link>
             </nav>
           </div>

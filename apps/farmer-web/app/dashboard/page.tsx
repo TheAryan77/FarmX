@@ -1,4 +1,4 @@
-import type { AuthUser, Listing, PriceSnapshot } from "@fasalx/types";
+import type { AuthUser, Listing, OfferThread, Order, PriceSnapshot } from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge, Button, Card, CardContent } from "@fasalx/ui";
@@ -36,12 +36,16 @@ export default async function HomePage() {
 
   // The price card and the listing count are independent: if the market lookup
   // fails, the farmer should still be able to reach "Sell produce".
-  const [price, listings] = await Promise.all([
+  const [price, listings, offers, orders] = await Promise.all([
     apiCall<PriceSnapshot>(
       `/market/price?crop=wheat&district=${encodeURIComponent(user.district ?? "Karnal")}`,
     ).catch(() => null),
     apiCall<Listing[]>("/listings/mine").catch(() => null),
+    apiCall<OfferThread[]>("/offers/mine").catch(() => null),
+    apiCall<Order[]>("/orders/mine").catch(() => null),
   ]);
+
+  const awaiting = offers?.filter((t) => t.awaitingYou).length ?? 0;
 
   const firstName = user.name.split(" ")[0] ?? user.name;
   const liveListings = listings?.filter((l) => l.status === "ACTIVE") ?? [];
@@ -68,16 +72,44 @@ export default async function HomePage() {
         <Button asChild size="touch" className="w-full text-lg">
           <Link href="/listings/new">Sell produce</Link>
         </Button>
-        <Button asChild size="touch" variant="outline" className="w-full text-lg">
-          <Link href="/listings">
-            My listings
-            {liveListings.length > 0 ? (
+        <Button
+          asChild
+          size="touch"
+          variant={awaiting > 0 ? "default" : "outline"}
+          className="w-full text-lg"
+        >
+          <Link href="/offers">
+            Offers
+            {awaiting > 0 ? (
               <Badge variant="secondary" size="lg" className="ml-1">
-                {liveListings.length}
+                {awaiting} new
               </Badge>
             ) : null}
           </Link>
         </Button>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Button asChild size="touch" variant="outline" className="text-base">
+            <Link href="/listings">
+              My listings
+              {liveListings.length > 0 ? (
+                <Badge variant="secondary" className="ml-1">
+                  {liveListings.length}
+                </Badge>
+              ) : null}
+            </Link>
+          </Button>
+          <Button asChild size="touch" variant="outline" className="text-base">
+            <Link href="/orders">
+              My deals
+              {orders && orders.length > 0 ? (
+                <Badge variant="secondary" className="ml-1">
+                  {orders.length}
+                </Badge>
+              ) : null}
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {liveListings.length > 0 ? (

@@ -24,6 +24,21 @@ export type RequirementStatus =
   | "CANCELLED"
   | "EXPIRED";
 
+export type OfferStatus = "PENDING" | "COUNTERED" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+
+export type OfferParty = "BUYER" | "FARMER";
+
+export type OrderStatus =
+  | "CREATED"
+  | "CONTRACTED"
+  | "FUNDED"
+  | "IN_TRANSIT"
+  | "DELIVERED"
+  | "QC_PASSED"
+  | "SETTLED"
+  | "DISPUTED"
+  | "CANCELLED";
+
 export type ListingStatus =
   | "DRAFT"
   | "ACTIVE"
@@ -220,4 +235,105 @@ export interface RequirementCandidates {
     tooFar: number;
     belowMinLot: number;
   };
+}
+
+// ---------------------------------------------------------------- offers
+
+/** One message in a negotiation. A counter is a new offer, not an edit. */
+export interface Offer {
+  id: string;
+  listingId: string;
+  requirementId: string | null;
+  parentOfferId: string | null;
+
+  /** Which side put this price on the table. */
+  initiatedBy: OfferParty;
+  /** Whole rupees per quintal. */
+  pricePerQuintal: number;
+  quantityQuintals: number;
+  /** pricePerQuintal × quantityQuintals, whole rupees. Derived. */
+  totalRupees: number;
+
+  status: OfferStatus;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * A whole negotiation, from the point of view of whoever asked.
+ *
+ * The API decides what the caller may do rather than making each client
+ * re-derive the state machine — the farmer app and the buyer portal would
+ * otherwise both have to know that you cannot accept your own price.
+ */
+export interface OfferThread {
+  /** Id of the first offer in the chain. */
+  rootId: string;
+  /** The offer currently on the table — the only one that can be acted on. */
+  latest: Offer;
+  /** Oldest first, including `latest`. */
+  history: Offer[];
+
+  listing: {
+    id: string;
+    crop: string;
+    grade: Grade;
+    availableQuintals: number;
+    expectedPricePerQuintal: number;
+    village: string;
+    district: string;
+  };
+  farmer: { id: string; name: string; village: string; district: string; rating: number };
+  buyer: { id: string; companyName: string; district: string };
+
+  /** True when the caller is the side that must respond. */
+  awaitingYou: boolean;
+  canAccept: boolean;
+  canCounter: boolean;
+  canReject: boolean;
+
+  /** Set once the thread has been accepted. */
+  orderId: string | null;
+  orderNo: string | null;
+}
+
+// ---------------------------------------------------------------- orders
+
+export interface OrderAllocation {
+  id: string;
+  listingId: string;
+  farmer: { id: string; name: string; village: string; district: string };
+  allocatedQuintals: number;
+  pricePerQuintal: number;
+  grossAmountRupees: number;
+  /** Populated by the matching engine in session 8. */
+  matchScore: number | null;
+  matchRank: number | null;
+  distanceKm: number | null;
+}
+
+export interface Order {
+  id: string;
+  /** Human-readable reference, e.g. FSL1024. */
+  orderNo: string;
+  crop: string;
+  grade: Grade;
+
+  totalQuintals: number;
+  settledPricePerQuintal: number;
+  grossAmountRupees: number;
+
+  deliveryBy: string;
+  status: OrderStatus;
+  /** True when filled by aggregating several farmers (session 8). */
+  isAggregated: boolean;
+
+  buyer: { id: string; companyName: string; district: string };
+  requirementId: string | null;
+  sourceOfferId: string | null;
+
+  allocations: OrderAllocation[];
+
+  createdAt: string;
+  updatedAt: string;
 }

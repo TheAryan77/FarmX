@@ -155,6 +155,41 @@ Not in the original session plan, but the requirement detail screen has to show
 matching supply, and the constraints that decide what matches live on the
 requirement.
 
+## Offers, negotiation and orders
+
+| Route                     | Access        | Notes                                       |
+| ------------------------- | ------------- | ------------------------------------------- |
+| `POST /offers`            | BUYER         | Opens a negotiation on a listing            |
+| `POST /offers/:id/counter`| either party  | Counters with a new price                   |
+| `POST /offers/:id/accept` | counterparty  | Creates the Order + OrderAllocation         |
+| `POST /offers/:id/reject` | counterparty  | Declines                                    |
+| `GET  /offers/mine`       | both roles    | Threads, scoped to the caller's side        |
+| `GET  /orders/mine`       | both roles    | Buyer's orders, or a farmer's allocations   |
+| `GET  /orders/:id`        | parties only  | 403 for anyone not on the deal              |
+
+`PENDING → COUNTERED → ACCEPTED | REJECTED | EXPIRED`. A counter is a **new
+offer** pointing at the one it answers, not an edit — the whole price history
+stays readable, and a thread never shows two live prices.
+
+Only the side that did *not* make the live offer may act on it. That single
+rule is what prevents accepting your own price, and it lives in the API:
+`/offers/mine` returns `canAccept` / `canCounter` / `canReject` per thread so
+the farmer app and the buyer portal cannot drift apart on the state machine.
+
+Accepting is one transaction — offer to ACCEPTED, order and allocation written,
+listing quantity committed. The listing is re-read *inside* that transaction, so
+two buyers accepting the same lot at once cannot both succeed. Order numbers are
+minted in the same transaction for the same reason.
+
+Offers lapse after 48 hours, swept on read rather than by a scheduler — there is
+no job runner in this stack, and a stale offer only matters when someone looks
+at it.
+
+The build plan names the offer field `pricePerUnit`; it is `pricePerQuintal`
+here, because a field called "per unit" invites exactly the kg/quintal
+confusion CLAUDE.md bans. Delivery dates are derived on accept (the
+requirement's deadline, else ready + 7 days) since an offer carries no date.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

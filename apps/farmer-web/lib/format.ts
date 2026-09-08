@@ -29,7 +29,7 @@ export function shortDate(iso: string): string {
   });
 }
 
-type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "muted";
+export type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "muted";
 
 /** Plain-language status plus the badge colour that matches it. */
 export const STATUS_LABEL: Record<ListingStatus, { text: string; variant: BadgeVariant }> = {
@@ -47,3 +47,51 @@ export const GRADE_LABEL: Record<string, string> = {
   B: "Grade B",
   C: "Grade C",
 };
+
+/**
+ * Status as the farmer should read it.
+ *
+ * A PENDING offer is "waiting for you" only to the side that has to answer.
+ * After the farmer counters, the offer on the table is still PENDING but it is
+ * the buyer who owes a reply — labelling that "Waiting for you" was wrong.
+ */
+export function offerStatusLabel(
+  status: string,
+  awaitingYou: boolean,
+): { text: string; variant: BadgeVariant } {
+  if (status === "PENDING") {
+    return awaitingYou
+      ? { text: "Waiting for you", variant: "warning" }
+      : { text: "Waiting for buyer", variant: "muted" };
+  }
+  const rest: Record<string, { text: string; variant: BadgeVariant }> = {
+    COUNTERED: { text: "Answered", variant: "muted" },
+    ACCEPTED: { text: "Deal agreed", variant: "success" },
+    REJECTED: { text: "Declined", variant: "destructive" },
+    EXPIRED: { text: "Expired", variant: "muted" },
+  };
+  return rest[status] ?? { text: status, variant: "muted" };
+}
+
+export const ORDER_STATUS: Record<string, { text: string; variant: BadgeVariant }> = {
+  CREATED: { text: "Agreed", variant: "success" },
+  CONTRACTED: { text: "Contract signed", variant: "default" },
+  FUNDED: { text: "Payment secured", variant: "default" },
+  IN_TRANSIT: { text: "On the way", variant: "warning" },
+  DELIVERED: { text: "Delivered", variant: "warning" },
+  QC_PASSED: { text: "Quality approved", variant: "success" },
+  SETTLED: { text: "Paid", variant: "success" },
+  DISPUTED: { text: "Disputed", variant: "destructive" },
+  CANCELLED: { text: "Cancelled", variant: "muted" },
+};
+
+/** "2 hours left" / "Expired" — offers lapse after 48 hours. */
+export function timeLeft(iso: string | null): string | null {
+  if (iso === null) return null;
+  const ms = Date.parse(iso) - Date.now();
+  if (ms <= 0) return "Expired";
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 24) return `${Math.floor(hours / 24)} day${hours >= 48 ? "s" : ""} left`;
+  if (hours >= 1) return `${hours} hour${hours === 1 ? "" : "s"} left`;
+  return `${Math.max(1, Math.floor(ms / 60_000))} min left`;
+}

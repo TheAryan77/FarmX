@@ -6,6 +6,8 @@ import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { listingRouter } from "./routes/listing.routes.js";
 import { marketRouter } from "./routes/market.routes.js";
+import { offerRouter } from "./routes/offer.routes.js";
+import { orderRouter } from "./routes/order.routes.js";
 import { requirementRouter } from "./routes/requirement.routes.js";
 
 /**
@@ -30,6 +32,8 @@ export function createApp(): Express {
   app.use("/listings", listingRouter);
   app.use("/market", marketRouter);
   app.use("/requirements", requirementRouter);
+  app.use("/offers", offerRouter);
+  app.use("/orders", orderRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

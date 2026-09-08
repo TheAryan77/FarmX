@@ -55,7 +55,7 @@ export function daysUntil(iso: string): number {
   return Math.round(diff / 86_400_000);
 }
 
-type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "muted";
+export type BadgeVariant = "default" | "secondary" | "outline" | "success" | "warning" | "destructive" | "muted";
 
 export const REQUIREMENT_STATUS: Record<RequirementStatus, { text: string; variant: BadgeVariant }> =
   {
@@ -72,3 +72,45 @@ export const GRADE_LABEL: Record<Grade, string> = {
   B: "Grade B",
   C: "Grade C",
 };
+
+/** Status as the buyer should read it — see the farmer app for the reasoning. */
+export function offerStatusLabel(
+  status: string,
+  awaitingYou: boolean,
+): { text: string; variant: BadgeVariant } {
+  if (status === "PENDING") {
+    return awaitingYou
+      ? { text: "Needs your reply", variant: "warning" }
+      : { text: "Awaiting farmer", variant: "muted" };
+  }
+  const rest: Record<string, { text: string; variant: BadgeVariant }> = {
+    COUNTERED: { text: "Countered", variant: "muted" },
+    ACCEPTED: { text: "Accepted", variant: "success" },
+    REJECTED: { text: "Declined", variant: "destructive" },
+    EXPIRED: { text: "Expired", variant: "muted" },
+  };
+  return rest[status] ?? { text: status, variant: "muted" };
+}
+
+export const ORDER_STATUS: Record<string, { text: string; variant: BadgeVariant }> = {
+  CREATED: { text: "Agreed", variant: "success" },
+  CONTRACTED: { text: "Contracted", variant: "default" },
+  FUNDED: { text: "Escrow funded", variant: "default" },
+  IN_TRANSIT: { text: "In transit", variant: "warning" },
+  DELIVERED: { text: "Delivered", variant: "warning" },
+  QC_PASSED: { text: "QC approved", variant: "success" },
+  SETTLED: { text: "Settled", variant: "success" },
+  DISPUTED: { text: "Disputed", variant: "destructive" },
+  CANCELLED: { text: "Cancelled", variant: "muted" },
+};
+
+/** Offers lapse after 48 hours. */
+export function timeLeft(iso: string | null): string | null {
+  if (iso === null) return null;
+  const ms = Date.parse(iso) - Date.now();
+  if (ms <= 0) return "Expired";
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 24) return `${Math.floor(hours / 24)}d left`;
+  if (hours >= 1) return `${hours}h left`;
+  return `${Math.max(1, Math.floor(ms / 60_000))}m left`;
+}

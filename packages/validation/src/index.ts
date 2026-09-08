@@ -190,6 +190,38 @@ export const listingFilterSchema = z.object({
   offset: z.coerce.number().int().min(0, "offset cannot be negative").default(0),
 });
 
+// ---------------------------------------------------------------- offers
+
+export const offerStatusSchema = z.enum([
+  "PENDING",
+  "COUNTERED",
+  "ACCEPTED",
+  "REJECTED",
+  "EXPIRED",
+]);
+
+/**
+ * The build plan calls this field `pricePerUnit`. It is `pricePerQuintal`
+ * here: CLAUDE.md forbids mixing units anywhere in the codebase, and a field
+ * named "per unit" invites exactly the kg/quintal confusion that ban exists to
+ * prevent.
+ */
+export const createOfferSchema = z.object({
+  listingId: z.string({ error: "Choose a listing" }).min(1, "Choose a listing"),
+  requirementId: z.string().min(1).optional(),
+  pricePerQuintal: pricePerQuintalSchema,
+  quantityQuintals: quantityQuintalsSchema,
+});
+
+/** A counter restates price, and may restate quantity. */
+export const counterOfferSchema = z.object({
+  pricePerQuintal: pricePerQuintalSchema,
+  quantityQuintals: quantityQuintalsSchema.optional(),
+});
+
+export type CreateOfferInput = z.infer<typeof createOfferSchema>;
+export type CounterOfferInput = z.infer<typeof counterOfferSchema>;
+
 export const priceQuerySchema = z.object({
   crop: cropSchema.default("wheat"),
   district: z.string().trim().min(1).max(60).default("Karnal"),

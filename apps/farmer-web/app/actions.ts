@@ -1,7 +1,12 @@
 "use server";
 
 import type { AuthUser, Listing, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
-import { createListingSchema, requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+import {
+  counterOfferSchema,
+  createListingSchema,
+  requestOtpSchema,
+  verifyOtpSchema,
+} from "@fasalx/validation";
 import { revalidatePath } from "next/cache";
 
 import { apiCall, ApiRequestError } from "@/lib/api";
@@ -110,6 +115,53 @@ export async function deleteListingAction(id: string): Promise<ActionResult<{ id
     revalidatePath("/listings");
     revalidatePath("/dashboard");
     return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- offers
+
+export async function acceptOfferAction(offerId: string): Promise<ActionResult<{ orderId: string }>> {
+  try {
+    const result = await apiCall<{ order: { id: string } }>(`/offers/${offerId}/accept`, {
+      method: "POST",
+    });
+    revalidatePath("/offers");
+    revalidatePath("/orders");
+    revalidatePath("/dashboard");
+    return { ok: true, data: { orderId: result.order.id } };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function counterOfferAction(
+  offerId: string,
+  pricePerQuintal: string,
+): Promise<ActionResult<{ offerId: string }>> {
+  const parsed = counterOfferSchema.safeParse({ pricePerQuintal });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the price" };
+  }
+
+  try {
+    const thread = await apiCall<{ latest: { id: string } }>(`/offers/${offerId}/counter`, {
+      method: "POST",
+      body: parsed.data,
+    });
+    revalidatePath("/offers");
+    return { ok: true, data: { offerId: thread.latest.id } };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function rejectOfferAction(offerId: string): Promise<ActionResult<null>> {
+  try {
+    await apiCall(`/offers/${offerId}/reject`, { method: "POST" });
+    revalidatePath("/offers");
+    return { ok: true, data: null };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

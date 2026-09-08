@@ -10,15 +10,26 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
+    "typecheck": "tsc --noEmit && turbo run typecheck",
     "clean": "turbo run clean",
+    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma db push --schema prisma/schema.prisma --force-reset --accept-data-loss",
+    "db:studio": "prisma studio --schema prisma/schema.prisma",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
     "ai:setup": "cd services/ai && python3 -m venv .venv && ./.venv/bin/pip install -q --upgrade pip && ./.venv/bin/pip install -r requirements.txt",
     "ai:dev": "cd services/ai && ./.venv/bin/uvicorn app.main:app --reload --port 8000"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.3",
+    "@types/node": "^22.18.1",
     "prettier": "^3.6.2",
     "prisma": "^6.16.1",
+    "tsx": "^4.20.5",
     "turbo": "^2.5.8",
     "typescript": "^5.9.2"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

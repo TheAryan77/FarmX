@@ -1,17 +1,591 @@
 // FasalX data model.
 //
 // CLAUDE.md: PostgreSQL is the source of truth. Polygon stores trust state only.
-// Money is Int (whole rupees). Quantity is Decimal(10,2) (quintals).
-// lat/lng are plain Float columns — no PostGIS, haversine is done in TS/SQL.
+//   - Money      → Int, whole rupees. Never Float.
+//   - Quantity   → Decimal(10,2), quintals (Q). Never kg, anywhere.
+//   - lat/lng    → plain Float. No PostGIS; haversine is done in TS/SQL.
+//   - No PII on-chain: names/phones/addresses/bank refs live here and only here.
 //
-// Models arrive in session 2. Datasource + generator only for the scaffold slice.
+// Every model below maps to a scene in the 10-scene demo script.
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+
+enum Role {
+  FARMER
+  BUYER
+  FPO
+  ADMIN
+}
+
+enum Grade {
+  A
+  B
+  C
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  RESERVED
+  PARTIALLY_ALLOCATED
+  SOLD
+  EXPIRED
+  CANCELLED
+}
+
+enum RequirementStatus {
+  OPEN
+  MATCHING
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+enum OfferParty {
+  BUYER
+  FARMER
+}
+
+enum OfferStatus {
+  PENDING
+  COUNTERED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum OrderStatus {
+  CREATED
+  CONTRACTED
+  FUNDED
+  IN_TRANSIT
+  DELIVERED
+  QC_PASSED
+  SETTLED
+  DISPUTED
+  CANCELLED
+}
+
+/// The on-chain contract state machine. Mirrored exactly in FasalXEscrow.sol.
+enum ContractStatus {
+  CREATED
+  ACCEPTED
+  FUNDED
+  PICKED_UP
+  DELIVERED
+  QC_APPROVED
+  RELEASED
+  DISPUTED
+  REFUNDED
+}
+
+enum EscrowStatus {
+  PENDING
+  LOCKED
+  RELEASED
+  REFUNDED
+}
+
+enum ShipmentStatus {
+  PLANNED
+  PICKUP_SCHEDULED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum StopStatus {
+  PENDING
+  ARRIVED
+  LOADED
+  SKIPPED
+}
+
+enum QcStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SettlementStatus {
+  PENDING
+  RELEASED
+  PAID
+  FAILED
+}
+
+// ---------------------------------------------------------------- identity
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String
+  role      Role
+  language  String   @default("hi")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farmer         FarmerProfile?
+  buyer          BuyerProfile?
+  fpo            FpoProfile?
+  inspectedItems QualityCheck[] @relation("InspectorChecks")
+
+  @@index([role])
+}
+
+model FarmerProfile {
+  id       String @id @default(cuid())
+  userId   String @unique
+  village  String
+  district String
+  state    String @default("Haryana")
+  lat      Float
+  lng      Float
+
+  farmSizeAcres Decimal @db.Decimal(10, 2)
+
+  /// Feeds the 10% reliability component of the match score (session 8).
+  rating          Decimal @default(0) @db.Decimal(3, 2)
+  completedOrders Int     @default(0)
+
+  kycStatus     KycStatus @default(NOT_STARTED)
+  /// Settlement reference only (UPI handle). Never goes on-chain.
+  settlementUpi String?
+
+  fpoId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fpo           FpoProfile?       @relation(fields: [fpoId], references: [id])
+  listings      ProduceListing[]
+  offers        Offer[]
+  allocations   OrderAllocation[]
+  shipmentStops ShipmentStop[]
+  settlements   Settlement[]
+
+  @@index([district])
+  @@index([fpoId])
+}
+
+model BuyerProfile {
+  id          String  @id @default(cuid())
+  userId      String  @unique
+  companyName String
+  gstin       String?
+  district    String
+  state       String  @default("Haryana")
+  lat         Float
+  lng         Float
+
+  /// Buyer's Amoy address. The only wallet in the demo — farmers hold none.
+  walletAddress String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requirements BuyerRequirement[]
+  offers       Offer[]
+  orders       Order[]
+}
+
+model FpoProfile {
+  id             String @id @default(cuid())
+  userId         String @unique
+  name           String
+  registrationNo String @unique
+  district       String
+  state          String @default("Haryana")
+  lat            Float
+  lng            Float
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members FarmerProfile[]
+}
+
+// ---------------------------------------------------------------- marketplace
+
+model ProduceListing {
+  id       String @id @default(cuid())
+  farmerId String
+  crop     String @default("wheat")
+  grade    Grade
+
+  quantityQuintals Decimal @db.Decimal(10, 2)
+  /// Committed to an accepted offer or allocation. Available = quantity - reserved.
+  reservedQuintals Decimal @default(0) @db.Decimal(10, 2)
+
+  expectedPricePerQuintal Int
+  availableFrom           DateTime @db.Date
+
+  // Pickup point. Defaults to the farmer's location but is stored per listing
+  // because produce is not always at the homestead.
+  village  String
+  district String
+  state    String @default("Haryana")
+  lat      Float
+  lng      Float
+
+  status ListingStatus @default(ACTIVE)
+  notes  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Soft delete (session 4).
+  deletedAt DateTime?
+
+  farmer      FarmerProfile     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  offers      Offer[]
+  allocations OrderAllocation[]
+
+  @@index([crop, grade, status])
+  @@index([farmerId])
+  @@index([district])
+}
+
+model BuyerRequirement {
+  id      String @id @default(cuid())
+  buyerId String
+  crop    String @default("wheat")
+  grade   Grade
+
+  quantityQuintals      Decimal  @db.Decimal(10, 2)
+  targetPricePerQuintal Int
+  maxDistanceKm         Int
+  /// Smallest lot the buyer will coordinate a pickup for. Keeps a 500Q bulk
+  /// requirement from being filled with a long tail of tiny lots.
+  minLotQuintals        Decimal? @db.Decimal(10, 2)
+
+  deliveryBy DateTime          @db.Date
+  status     RequirementStatus @default(OPEN)
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer  BuyerProfile @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  offers Offer[]
+  orders Order[]
+
+  @@index([crop, grade, status])
+  @@index([buyerId])
+}
+
+model Offer {
+  id            String  @id @default(cuid())
+  listingId     String
+  requirementId String?
+  buyerId       String
+  farmerId      String
+
+  initiatedBy      OfferParty
+  pricePerQuintal  Int
+  quantityQuintals Decimal    @db.Decimal(10, 2)
+
+  status OfferStatus @default(PENDING)
+
+  /// Counter-offer chain: a counter points back at the offer it answers.
+  parentOfferId String?
+
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  listing     ProduceListing    @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  requirement BuyerRequirement? @relation(fields: [requirementId], references: [id])
+  buyer       BuyerProfile      @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  farmer      FarmerProfile     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  parentOffer Offer?            @relation("OfferThread", fields: [parentOfferId], references: [id])
+  counters    Offer[]           @relation("OfferThread")
+  order       Order?
+
+  @@index([listingId, status])
+  @@index([buyerId, status])
+  @@index([farmerId, status])
+}
+
+// ---------------------------------------------------------------- order + aggregation
+
+model Order {
+  id            String  @id @default(cuid())
+  orderNo       String  @unique
+  buyerId       String
+  requirementId String?
+  sourceOfferId String? @unique
+
+  crop  String @default("wheat")
+  grade Grade
+
+  totalQuintals          Decimal @db.Decimal(10, 2)
+  settledPricePerQuintal Int
+  grossAmountRupees      Int
+
+  deliveryBy DateTime    @db.Date
+  status     OrderStatus @default(CREATED)
+
+  /// True when this order was filled by aggregating multiple farmers (scene 4).
+  isAggregated Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer        BuyerProfile      @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  requirement  BuyerRequirement? @relation(fields: [requirementId], references: [id])
+  sourceOffer  Offer?            @relation(fields: [sourceOfferId], references: [id])
+  allocations  OrderAllocation[]
+  contract     Contract?
+  shipment     Shipment?
+  qualityCheck QualityCheck?
+  settlements  Settlement[]
+
+  @@index([buyerId, status])
+}
+
+/// The aggregation join, and the centrepiece of the demo: one Order, many
+/// farmers, each with an allocated quantity. 80 + 120 + 150 + 150 = 500.
+model OrderAllocation {
+  id        String @id @default(cuid())
+  orderId   String
+  farmerId  String
+  listingId String
+
+  allocatedQuintals Decimal @db.Decimal(10, 2)
+  pricePerQuintal   Int
+  grossAmountRupees Int
+
+  /// Why this farmer was picked (session 8). Null for single-farmer orders.
+  matchScore Decimal? @db.Decimal(5, 4)
+  matchRank  Int?
+  distanceKm Decimal? @db.Decimal(8, 2)
+
+  createdAt DateTime @default(now())
+
+  order        Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  farmer       FarmerProfile  @relation(fields: [farmerId], references: [id])
+  listing      ProduceListing @relation(fields: [listingId], references: [id])
+  settlement   Settlement?
+  shipmentStop ShipmentStop?
+
+  @@unique([orderId, listingId])
+  @@index([farmerId])
+}
+
+// ---------------------------------------------------------------- trust layer
+
+model Contract {
+  id         String @id @default(cuid())
+  orderId    String @unique
+  contractNo String @unique
+
+  status       ContractStatus @default(CREATED)
+  amountRupees Int
+
+  /// The PDF lives in object storage; only its hash goes on-chain.
+  pdfPath   String?
+  pdfSha256 String?
+
+  // Mirror of the on-chain deal. Addresses only — never names or phones.
+  onChainDealId String?
+  buyerAddress  String?
+  sellerAddress String?
+  chainId       Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events ContractEvent[]
+  escrow Escrow?
+}
+
+model ContractEvent {
+  id         String @id @default(cuid())
+  contractId String
+
+  fromStatus ContractStatus?
+  toStatus   ContractStatus
+
+  txHash      String?
+  blockNumber Int?
+  /// True when the transition was recorded locally because the Amoy RPC failed.
+  degraded    Boolean @default(false)
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, createdAt])
+}
+
+model Escrow {
+  id         String @id @default(cuid())
+  contractId String @unique
+
+  status       EscrowStatus @default(PENDING)
+  amountRupees Int
+
+  fundedTxHash   String?
+  releasedTxHash String?
+  refundedTxHash String?
+  fundedAt       DateTime?
+  releasedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------- logistics
+
+model Shipment {
+  id      String @id @default(cuid())
+  orderId String @unique
+
+  status           ShipmentStatus @default(PLANNED)
+  vehicleClass     String
+  capacityQuintals Decimal        @db.Decimal(10, 2)
+
+  totalDistanceKm Decimal @db.Decimal(8, 2)
+  /// Unoptimised sequential baseline, so the saving can be stated honestly.
+  naiveDistanceKm Decimal @db.Decimal(8, 2)
+
+  optimisedCostRupees Int
+  naiveCostRupees     Int
+
+  destinationLat Float
+  destinationLng Float
+
+  driverName        String?
+  driverPhone       String?
+  vehicleNo         String?
+  pickupScheduledAt DateTime?
+  deliveredAt       DateTime?
+  deliveryProofPath String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  stops ShipmentStop[]
+}
+
+model ShipmentStop {
+  id           String  @id @default(cuid())
+  shipmentId   String
+  farmerId     String
+  allocationId String? @unique
+
+  sequence         Int
+  lat              Float
+  lng              Float
+  quantityQuintals Decimal @db.Decimal(10, 2)
+  legDistanceKm    Decimal @db.Decimal(8, 2)
+
+  status    StopStatus @default(PENDING)
+  arrivedAt DateTime?
+  loadedAt  DateTime?
+
+  shipment   Shipment         @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  farmer     FarmerProfile    @relation(fields: [farmerId], references: [id])
+  allocation OrderAllocation? @relation(fields: [allocationId], references: [id])
+
+  @@unique([shipmentId, sequence])
+}
+
+// ---------------------------------------------------------------- QC + settlement
+
+model QualityCheck {
+  id              String  @id @default(cuid())
+  orderId         String  @unique
+  inspectorUserId String?
+
+  gradeFound  Grade
+  moisturePct Decimal?  @db.Decimal(5, 2)
+  status      QcStatus  @default(PENDING)
+  notes       String?
+  proofPath   String?
+  checkedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  inspector User? @relation("InspectorChecks", fields: [inspectorUserId], references: [id])
+}
+
+/// One row per farmer allocation on release. Every figure is derived, none
+/// hardcoded — see session 11 for the arithmetic.
+model Settlement {
+  id           String @id @default(cuid())
+  orderId      String
+  allocationId String @unique
+  farmerId     String
+
+  grossAmountRupees    Int
+  logisticsShareRupees Int
+  platformFeeRupees    Int
+  netAmountRupees      Int
+
+  /// Illustrative comparison against the traditional mandi channel.
+  traditionalEstimateRupees Int
+  farmerGainRupees          Int
+
+  status     SettlementStatus @default(PENDING)
+  releasedAt DateTime?
+  txHash     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order      Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  allocation OrderAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  farmer     FarmerProfile   @relation(fields: [farmerId], references: [id])
+
+  @@index([farmerId, status])
+}
+
+// ---------------------------------------------------------------- market data
+
+model PriceHistory {
+  id       String   @id @default(cuid())
+  crop     String   @default("wheat")
+  district String
+  state    String   @default("Haryana")
+  date     DateTime @db.Date
+
+  modalPricePerQuintal Int
+  minPricePerQuintal   Int?
+  maxPricePerQuintal   Int?
+  arrivalQuintals      Decimal? @db.Decimal(12, 2)
+
+  /// "agmarknet-csv" when seeded from a real download, "generated" otherwise.
+  source String @default("generated")
+
+  createdAt DateTime @default(now())
+
+  @@unique([crop, district, date])
 }

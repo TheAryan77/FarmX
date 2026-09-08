@@ -1,0 +1,14 @@
+{
+  "$comment": "Covers repo-root scripts that live outside a workspace (prisma/seed.ts).",
+  "extends": "./packages/config/tsconfig/base.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node"],
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": ["prisma/**/*.ts"]
+}

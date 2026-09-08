@@ -48,6 +48,29 @@ pnpm ai:dev               # the Python AI service (separate — it has its own v
 | api        | http://localhost:4000           | `/health` → `{ data: { status, ts } }`        |
 | ai         | http://localhost:8000           | `/health` → `{ status: "ok" }`                |
 
+## Database
+
+```bash
+pnpm db:push      # sync schema to the database
+pnpm db:seed      # load the demo world (idempotent — wipes and reloads)
+pnpm db:reset     # force-reset the schema, then re-seed with db:seed
+pnpm db:studio    # browse the data
+```
+
+`pnpm db:seed` prints a self-check proving the seeded farmers still aggregate to
+exactly 500Q, and fails loudly if an edit breaks that. Demo logins:
+**9876543210** (Ramesh Kumar, farmer) and **9812345678** (ABC Foods, buyer).
+
+### Price history
+
+The seed reads `services/ai/data/wheat_karnal.csv` if present — an Agmarknet
+export from data.gov.in — matching columns fuzzily and converting arrivals from
+tonnes to quintals. Real data is **never** rewritten to hit a demo number, since
+Session 7 trains on these rows and quotes their error; if the CSV's latest price
+differs from the ₹2,380 in CLAUDE.md, the seed warns and the demo script is what
+should move. With no CSV it generates 24 months of a deterministic seasonal
+curve (April harvest glut, Dec–Jan lean-season peak) ending at ₹2,380.
+
 Other scripts: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm clean`.
 
 ## Conventions

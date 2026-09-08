@@ -1,95 +1,184 @@
-import type { AuthUser } from "@fasalx/types";
+import type { AuthUser, Requirement } from "@fasalx/types";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@fasalx/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Progress,
+} from "@fasalx/ui";
 
 import { apiCall, ApiRequestError } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
-import { signOutAction } from "@/app/actions";
+import {
+  daysUntil,
+  GRADE_LABEL,
+  radiusKm,
+  quintals,
+  REQUIREMENT_STATUS,
+  rupees,
+  rupeesCompact,
+  shortDate,
+} from "@/lib/format";
+import { AppShell } from "@/app/components/app-shell";
+import { ErrorPanel } from "@/app/components/error-panel";
 
-export const metadata = { title: "Dashboard · FasalX Buyer" };
+export const metadata = { title: "Requirements · FasalX Buyer" };
+
+/** Statuses that still need supply. */
+const ACTIVE_STATUSES = new Set(["OPEN", "MATCHING", "PARTIALLY_FULFILLED"]);
 
 export default async function DashboardPage() {
   if (!(await getSessionToken())) redirect("/login");
 
   let user: AuthUser;
+  let requirements: Requirement[];
   try {
-    user = await apiCall<AuthUser>("/auth/me");
+    [user, requirements] = await Promise.all([
+      apiCall<AuthUser>("/auth/me"),
+      apiCall<Requirement[]>("/requirements/mine"),
+    ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
-    const message = err instanceof ApiRequestError ? err.message : "Could not load your account";
     return (
-      <main className="flex min-h-dvh items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Cannot load your account</CardTitle>
-            <CardDescription>{message}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={signOutAction}>
-              <Button type="submit" variant="outline" className="w-full">
-                Sign out
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </main>
+      <ErrorPanel
+        title="Cannot load your requirements"
+        message={err instanceof ApiRequestError ? err.message : "Please try again"}
+        backHref="/dashboard"
+        backLabel="Retry"
+      />
     );
   }
 
-  return (
-    <div className="min-h-dvh bg-muted/40">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
-          <div className="flex items-baseline gap-3">
-            <span className="text-sm font-semibold tracking-[0.2em] text-primary uppercase">
-              FasalX
-            </span>
-            <span className="text-sm text-muted-foreground">Buyer procurement</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">{user.name}</span>
-            <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-              {user.role}
-            </span>
-            <form action={signOutAction}>
-              <Button type="submit" variant="outline" size="sm">
-                Sign out
-              </Button>
-            </form>
-          </div>
-        </div>
-      </header>
+  const active = requirements.filter((r) => ACTIVE_STATUSES.has(r.status));
+  const totalProcurement = active.reduce((sum, r) => sum + r.estimatedValueRupees, 0);
+  const totalNeeded = active.reduce((sum, r) => sum + r.quantityQuintals, 0);
+  const totalAllocated = active.reduce((sum, r) => sum + r.allocatedQuintals, 0);
 
-      <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+  return (
+    <AppShell user={user}>
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Procurement requirements</h1>
           <p className="text-sm text-muted-foreground">
-            Requirements, matched supply and contracts appear here next.
+            Post what you need and FasalX aggregates supply direct from farmers.
           </p>
         </div>
+        <Button asChild>
+          <Link href="/requirements/new">New requirement</Link>
+        </Button>
+      </div>
 
-        <Card>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Active requirements" value={String(active.length)} />
+        <Stat
+          label="Volume required"
+          value={quintals(totalNeeded)}
+          hint={`${quintals(totalAllocated)} committed`}
+        />
+        <Stat
+          label="Procurement value"
+          value={rupeesCompact(totalProcurement)}
+          hint="At target prices"
+        />
+      </div>
+
+      {requirements.length === 0 ? (
+        <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-base">Account</CardTitle>
+            <CardTitle className="text-base">No requirements yet</CardTitle>
+            <CardDescription>
+              Post a requirement and FasalX will find farmers who can fill it.
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-3">
-              <Field label="Contact" value={user.name} />
-              <Field label="Mobile" value={`+91 ${user.phone}`} />
-              <Field label="District" value={user.district ?? "—"} />
-            </dl>
+            <Button asChild>
+              <Link href="/requirements/new">Create your first requirement</Link>
+            </Button>
           </CardContent>
         </Card>
-      </main>
-    </div>
+      ) : (
+        <ul className="space-y-4">
+          {requirements.map((requirement) => (
+            <li key={requirement.id}>
+              <RequirementCard requirement={requirement} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </AppShell>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div>
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
-      <dd className="mt-0.5 font-medium">{value}</dd>
-    </div>
+    <Card>
+      <CardContent className="space-y-0.5">
+        <p className="text-xs tracking-wide text-muted-foreground uppercase">{label}</p>
+        <p className="text-2xl font-bold tracking-tight">{value}</p>
+        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RequirementCard({ requirement }: { requirement: Requirement }) {
+  const status = REQUIREMENT_STATUS[requirement.status];
+  const days = daysUntil(requirement.deliveryBy);
+
+  return (
+    <Link href={`/requirements/${requirement.id}`} className="block">
+      <Card className="transition-colors hover:border-primary/40">
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold capitalize">
+                  {quintals(requirement.quantityQuintals)} {requirement.crop}
+                </h2>
+                <Badge variant="outline">{GRADE_LABEL[requirement.grade]}</Badge>
+                <Badge variant={status.variant}>{status.text}</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Target {rupees(requirement.targetPricePerQuintal)}/Q · within{" "}
+                {radiusKm(requirement.maxDistanceKm)}
+                {requirement.minLotQuintals
+                  ? ` · min lot ${quintals(requirement.minLotQuintals)}`
+                  : ""}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold">{rupeesCompact(requirement.estimatedValueRupees)}</p>
+              <p className="text-xs text-muted-foreground">
+                Deliver by {shortDate(requirement.deliveryBy)}
+                {days >= 0 ? ` · ${days} ${days === 1 ? "day" : "days"} left` : " · overdue"}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="text-muted-foreground">
+                {quintals(requirement.allocatedQuintals)} of{" "}
+                {quintals(requirement.quantityQuintals)} committed
+              </span>
+              <span className="font-semibold">{requirement.fulfilmentPercent}%</span>
+            </div>
+            <Progress value={requirement.fulfilmentPercent} />
+            {requirement.remainingQuintals > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {quintals(requirement.remainingQuintals)} still to source
+              </p>
+            ) : (
+              <p className="text-xs font-medium text-success">Fully sourced</p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

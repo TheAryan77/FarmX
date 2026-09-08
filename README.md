@@ -127,6 +127,34 @@ deal, or reduced below the committed quantity.
 screen needs a price and apps only ever talk to the API. Session 7's
 `GET /ai/price` goes in front of it.
 
+## Requirements and supply matching
+
+| Route                                | Access | Notes                                          |
+| ------------------------------------ | ------ | ---------------------------------------------- |
+| `POST /requirements`                 | BUYER  | Create                                         |
+| `GET  /requirements/mine`            | BUYER  | With fulfilment percentage on each             |
+| `GET  /requirements/:id`             | signed in | Readable by farmers too — session 6 needs it |
+| `GET  /requirements/:id/candidates`  | signed in | Supply matching the requirement's constraints |
+
+`GET /listings` uses **optional** auth: it stays a public route, but a
+signed-in buyer additionally gets `distanceKm` on every result, measured from
+their registered location. Anyone else gets `null` rather than a guess.
+
+Distance is haversine, no PostGIS. A radius filter first narrows the query with
+a lat/lng **bounding box** so Postgres can use its indexes, then the exact
+distance is applied in TS — the box is always a superset of the circle, so
+nothing in range is lost. With a radius active, paging and `total` are computed
+after the exact filter, otherwise `total` would count listings the radius rejects.
+
+`/candidates` also returns a count of what it *rejected* and why — wrong grade,
+too far, below minimum lot — so the buyer can see supply being discarded for
+stated reasons rather than just getting a short list. It is deliberately
+unranked (nearest first); session 8 adds the weighted score and aggregation.
+
+Not in the original session plan, but the requirement detail screen has to show
+matching supply, and the constraints that decide what matches live on the
+requirement.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

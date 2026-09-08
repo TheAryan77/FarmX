@@ -132,6 +132,41 @@ export const updateListingSchema = z
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Nothing to update");
 
+export const requirementStatusSchema = z.enum([
+  "OPEN",
+  "MATCHING",
+  "PARTIALLY_FULFILLED",
+  "FULFILLED",
+  "CANCELLED",
+  "EXPIRED",
+]);
+
+/** Delivery deadlines must be ahead of us, and within a planning horizon. */
+export const deliveryBySchema = isoDateSchema
+  .refine((v) => v >= istTodayIso(), "Choose a delivery date in the future")
+  .refine((v) => v <= addDaysIso(istTodayIso(), 365), "Choose a date within the next year");
+
+export const createRequirementSchema = z.object({
+  crop: cropSchema.default("wheat"),
+  grade: gradeSchema,
+  quantityQuintals: quantityQuintalsSchema,
+  targetPricePerQuintal: pricePerQuintalSchema,
+  maxDistanceKm: z.coerce
+    .number({ error: "Enter how far you will collect from" })
+    .int("Enter a whole number of kilometres")
+    .min(1, "Enter at least 1 km")
+    .max(1000, "Enter 1,000 km or less"),
+  /**
+   * Optional. Keeps a bulk requirement from being filled with a long tail of
+   * tiny lots the buyer would have to send a separate truck for.
+   */
+  minLotQuintals: quantityQuintalsSchema.optional(),
+  deliveryBy: deliveryBySchema,
+  notes: z.string().trim().max(500).optional(),
+});
+
+export type CreateRequirementInput = z.infer<typeof createRequirementSchema>;
+
 export const listingFilterSchema = z.object({
   crop: cropSchema.optional(),
   grade: gradeSchema.optional(),
@@ -139,6 +174,13 @@ export const listingFilterSchema = z.object({
   status: listingStatusSchema.optional(),
   /** Hide lots below a bulk buyer's minimum. Quintals. */
   minQuantityQuintals: quantityQuintalsSchema.optional(),
+  /** Only listings within this radius of the caller's location. */
+  maxDistanceKm: z.coerce
+    .number()
+    .int()
+    .min(1, "maxDistanceKm must be at least 1")
+    .max(1000, "maxDistanceKm cannot be more than 1000")
+    .optional(),
   limit: z.coerce
     .number()
     .int()

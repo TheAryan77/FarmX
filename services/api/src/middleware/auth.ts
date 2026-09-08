@@ -49,3 +49,27 @@ export function requireRole(...roles: Role[]): RequestHandler {
     return next();
   };
 }
+
+/**
+ * Attaches claims when a valid bearer token is present, and does nothing when
+ * it is not. Used by public routes that enrich their response for a signed-in
+ * caller — `GET /listings` adds distance-from-buyer this way without becoming
+ * an authenticated route.
+ *
+ * A malformed or expired token is ignored rather than rejected: the route is
+ * public, so the caller simply gets the anonymous response.
+ */
+export const optionalAuth: RequestHandler = (req, _res, next) => {
+  const header = req.get("authorization");
+  if (!header?.startsWith("Bearer ")) return next();
+
+  const token = header.slice("Bearer ".length).trim();
+  if (token.length === 0) return next();
+
+  try {
+    req.auth = verifyToken(token);
+  } catch {
+    // Ignored on purpose — see above.
+  }
+  return next();
+};

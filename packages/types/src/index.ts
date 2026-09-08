@@ -16,6 +16,14 @@ export type Role = "FARMER" | "BUYER" | "FPO" | "ADMIN";
 
 export type Grade = "A" | "B" | "C";
 
+export type RequirementStatus =
+  | "OPEN"
+  | "MATCHING"
+  | "PARTIALLY_FULFILLED"
+  | "FULFILLED"
+  | "CANCELLED"
+  | "EXPIRED";
+
 export type ListingStatus =
   | "DRAFT"
   | "ACTIVE"
@@ -112,6 +120,13 @@ export interface Listing {
 
   farmer: ListingFarmer;
 
+  /**
+   * Road-less great-circle distance from the requesting buyer's location, in
+   * km. Present only when the caller is an authenticated buyer or an origin
+   * was supplied; null otherwise. Haversine, no PostGIS — CLAUDE.md.
+   */
+  distanceKm: number | null;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -140,4 +155,69 @@ export interface PriceSnapshot {
   /** Change against the reading 7 days earlier, in whole rupees. */
   changeVs7dRupees: number | null;
   source: string;
+}
+
+// ---------------------------------------------------------------- requirements
+
+/** The buyer, as shown on their own requirement. */
+export interface RequirementBuyer {
+  id: string;
+  companyName: string;
+  district: string;
+  state: string;
+  lat: number;
+  lng: number;
+}
+
+export interface Requirement {
+  id: string;
+  crop: string;
+  grade: Grade;
+
+  /** What the buyer needs, in quintals. */
+  quantityQuintals: number;
+  /** Whole rupees per quintal the buyer is aiming at — a target, not a cap. */
+  targetPricePerQuintal: number;
+  maxDistanceKm: number;
+  /** Smallest lot the buyer will coordinate a pickup for, in quintals. */
+  minLotQuintals: number | null;
+
+  /** ISO date, no time component. */
+  deliveryBy: string;
+  status: RequirementStatus;
+  notes: string | null;
+
+  buyer: RequirementBuyer;
+
+  /** Committed through order allocations so far, in quintals. */
+  allocatedQuintals: number;
+  /** quantityQuintals − allocatedQuintals, floored at zero. */
+  remainingQuintals: number;
+  /** 0-100, rounded. Drives the dashboard fulfilment bar. */
+  fulfilmentPercent: number;
+
+  /** Whole rupees: quantityQuintals × targetPricePerQuintal. */
+  estimatedValueRupees: number;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Supply that satisfies a requirement's own constraints — crop, grade, radius
+ * and minimum lot. Unranked: session 8 adds the scoring and aggregation.
+ */
+export interface RequirementCandidates {
+  requirement: Requirement;
+  candidates: Listing[];
+  /** Sum of availableQuintals across the candidates. */
+  totalAvailableQuintals: number;
+  /** Whether the candidate pool alone could fill the requirement. */
+  satisfiable: boolean;
+  /** How many listings were excluded, and why — shown as a rejection summary. */
+  excluded: {
+    wrongGrade: number;
+    tooFar: number;
+    belowMinLot: number;
+  };
 }

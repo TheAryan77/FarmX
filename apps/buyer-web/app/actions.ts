@@ -1,7 +1,8 @@
 "use server";
 
-import type { AuthUser, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
-import { requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+import type { AuthUser, Requirement, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
+import { createRequirementSchema, requestOtpSchema, verifyOtpSchema } from "@fasalx/validation";
+import { revalidatePath } from "next/cache";
 
 import { apiCall, ApiRequestError } from "@/lib/api";
 import { APP_ROLE, clearSessionToken, setSessionToken } from "@/lib/session";
@@ -74,4 +75,39 @@ export async function verifyOtpAction(
 
 export async function signOutAction(): Promise<void> {
   await clearSessionToken();
+}
+
+// ---------------------------------------------------------------- requirements
+
+export async function createRequirementAction(input: {
+  crop: string;
+  grade: string;
+  quantityQuintals: string;
+  targetPricePerQuintal: string;
+  maxDistanceKm: string;
+  minLotQuintals?: string;
+  deliveryBy: string;
+}): Promise<ActionResult<Requirement>> {
+  // An empty optional field arrives as "" from the form; drop it rather than
+  // letting Zod coerce it to 0.
+  const payload = {
+    ...input,
+    ...(input.minLotQuintals ? { minLotQuintals: input.minLotQuintals } : { minLotQuintals: undefined }),
+  };
+
+  const parsed = createRequirementSchema.safeParse(payload);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the details you entered" };
+  }
+
+  try {
+    const requirement = await apiCall<Requirement>("/requirements", {
+      method: "POST",
+      body: parsed.data,
+    });
+    revalidatePath("/dashboard");
+    return { ok: true, data: requirement };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
 }

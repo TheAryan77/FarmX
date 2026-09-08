@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 
 import { HttpError } from "../lib/errors.js";
+import { boundingBox, haversineKm, roundKm } from "../lib/geo.js";
 import { prisma } from "../lib/prisma.js";
 import { fromIsoDate, toIsoDate, toQuintals, toRupees } from "../lib/serialize.js";
 
@@ -40,7 +41,7 @@ const EDITABLE: PrismaListingStatus[] = [
   PrismaListingStatus.ACTIVE,
 ];
 
-const listingInclude = {
+export const listingInclude = {
   farmer: {
     select: {
       id: true,
@@ -55,7 +56,13 @@ const listingInclude = {
 
 type ListingRow = Prisma.ProduceListingGetPayload<{ include: typeof listingInclude }>;
 
-function toListing(row: ListingRow): Listing {
+/** Where distances are measured from, when the caller has a location. */
+export interface Origin {
+  lat: number;
+  lng: number;
+}
+
+export function toListing(row: ListingRow, origin?: Origin | null): Listing {
   const quantity = toQuintals(row.quantityQuintals);
   const reserved = toQuintals(row.reservedQuintals);
   const available = Math.round((quantity - reserved) * 100) / 100;
@@ -91,6 +98,8 @@ function toListing(row: ListingRow): Listing {
       rating: Number(row.farmer.rating),
       completedOrders: row.farmer.completedOrders,
     },
+
+    distanceKm: origin ? roundKm(haversineKm(origin.lat, origin.lng, row.lat, row.lng)) : null,
 
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -159,10 +168,20 @@ export async function listMine(userId: string): Promise<Listing[]> {
     orderBy: { createdAt: "desc" },
   });
 
-  return rows.map(toListing);
+  return rows.map((row) => toListing(row));
 }
 
-export async function listPublic(filter: ListingFilterInput): Promise<ListingPage> {
+export async function listPublic(
+  filter: ListingFilterInput,
+  origin?: Origin | null,
+): Promise<ListingPage> {
+  // A radius filter needs the exact haversine, which SQL cannot index. The
+  // bounding box lets Postgres discard everything obviously out of range using
+  // the lat/lng columns, so only the corners of the box reach TS. The box is a
+  // superset of the circle, so nothing in range is lost.
+  const radius = origin && filter.maxDistanceKm !== undefined ? filter.maxDistanceKm : null;
+  const box = origin && radius !== null ? boundingBox(origin.lat, origin.lng, radius) : null;
+
   const where: Prisma.ProduceListingWhereInput = {
     deletedAt: null,
     // An explicit status filter wins; otherwise show only what can be bought.
@@ -175,28 +194,56 @@ export async function listPublic(filter: ListingFilterInput): Promise<ListingPag
     ...(filter.minQuantityQuintals === undefined
       ? {}
       : { quantityQuintals: { gte: new Prisma.Decimal(filter.minQuantityQuintals) } }),
+    ...(box === null
+      ? {}
+      : {
+          lat: { gte: box.minLat, lte: box.maxLat },
+          lng: { gte: box.minLng, lte: box.maxLng },
+        }),
   };
 
-  const [rows, total] = await Promise.all([
-    prisma.produceListing.findMany({
-      where,
-      include: listingInclude,
-      orderBy: [{ createdAt: "desc" }],
-      take: filter.limit,
-      skip: filter.offset,
-    }),
-    prisma.produceListing.count({ where }),
-  ]);
+  // With no radius filter the database paginates. With one, the exact distance
+  // decides membership, so the (box-bounded) matches are refined and paged in
+  // TS — otherwise `total` would count listings that the radius rejects.
+  if (radius === null) {
+    const [rows, total] = await Promise.all([
+      prisma.produceListing.findMany({
+        where,
+        include: listingInclude,
+        orderBy: [{ createdAt: "desc" }],
+        take: filter.limit,
+        skip: filter.offset,
+      }),
+      prisma.produceListing.count({ where }),
+    ]);
+
+    return {
+      listings: rows.map((row) => toListing(row, origin)),
+      total,
+      limit: filter.limit,
+      offset: filter.offset,
+    };
+  }
+
+  const rows = await prisma.produceListing.findMany({
+    where,
+    include: listingInclude,
+    orderBy: [{ createdAt: "desc" }],
+  });
+
+  const withinRadius = rows
+    .map((row) => toListing(row, origin))
+    .filter((listing) => listing.distanceKm !== null && listing.distanceKm <= radius);
 
   return {
-    listings: rows.map(toListing),
-    total,
+    listings: withinRadius.slice(filter.offset, filter.offset + filter.limit),
+    total: withinRadius.length,
     limit: filter.limit,
     offset: filter.offset,
   };
 }
 
-export async function getListing(id: string): Promise<Listing> {
+export async function getListing(id: string, origin?: Origin | null): Promise<Listing> {
   const row = await prisma.produceListing.findFirst({
     where: { id, deletedAt: null },
     include: listingInclude,
@@ -205,7 +252,7 @@ export async function getListing(id: string): Promise<Listing> {
   if (!row) {
     throw HttpError.notFound("LISTING_NOT_FOUND", "That listing no longer exists");
   }
-  return toListing(row);
+  return toListing(row, origin);
 }
 
 /** Loads a listing and asserts the caller owns it. */

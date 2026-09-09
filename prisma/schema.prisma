@@ -467,14 +467,21 @@ model Shipment {
 
   status           ShipmentStatus @default(PLANNED)
   vehicleClass     String
+  /// How many vehicles of that class the plan uses.
+  vehicleCount     Int            @default(1)
   capacityQuintals Decimal        @db.Decimal(10, 2)
 
+  /// Estimated road distance: great-circle × a circuity factor, not routed.
   totalDistanceKm Decimal @db.Decimal(8, 2)
-  /// Unoptimised sequential baseline, so the saving can be stated honestly.
+  /// The baseline FasalX replaces: one round trip per farm, i.e. no
+  /// aggregation. The headline saving is measured against this.
   naiveDistanceKm Decimal @db.Decimal(8, 2)
 
   optimisedCostRupees Int
   naiveCostRupees     Int
+  /// Same fleet visiting farms in listed order. Often equal to the optimised
+  /// cost on a small clustered order, and reported rather than hidden.
+  sequencingCostRupees Int?
 
   destinationLat Float
   destinationLng Float
@@ -500,6 +507,8 @@ model ShipmentStop {
   allocationId String? @unique
 
   sequence         Int
+  /// Which vehicle in the plan makes this stop.
+  vehicleNumber    Int     @default(1)
   lat              Float
   lng              Float
   quantityQuintals Decimal @db.Decimal(10, 2)

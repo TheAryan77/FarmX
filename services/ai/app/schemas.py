@@ -89,3 +89,27 @@ class MatchRequest(BaseModel):
 
     requirement: MatchRequirement
     candidates: list[MatchCandidate]
+
+
+# ---------------------------------------------------------------- routing
+
+
+class RoutePoint(BaseModel):
+    """A place a vehicle must reach. `id` is opaque and echoed back."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    id: str | None = None
+    lat: float = Field(ge=-90, le=90)
+    lng: float = Field(ge=-180, le=180)
+
+
+class RoutePickup(RoutePoint):
+    quantityQuintals: float = Field(gt=0)
+
+
+class RouteRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    destination: RoutePoint
+    pickups: list[RoutePickup] = Field(min_length=1)

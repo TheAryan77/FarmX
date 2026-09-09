@@ -349,6 +349,51 @@ with their own rupee share and a plain-language progress list — no addresses,
 no hashes, no token amounts, no chain name. Audited by regex against the
 rendered page.
 
+## Logistics
+
+| Route                                | Notes                                        |
+| ------------------------------------ | -------------------------------------------- |
+| `POST /logistics/optimize`           | BUYER · plans (or replans) the pickup route  |
+| `GET  /logistics/:id`                | Parties only                                 |
+| `GET  /logistics/for-order/:orderId` | What the order screens use                   |
+| `POST /optimize/route` (AI service)  | OR-Tools CVRP, stateless                     |
+| `GET  /optimize/vehicles` (AI)       | The vehicle classes and rates, inspectable   |
+
+OR-Tools solves a capacitated VRP over **every** configured vehicle class and
+picks the cheapest feasible plan, returning the alternatives it rejected. For
+the demo order it chooses 3 × 6-wheel truck (₹8,386) over 2 × multi-axle
+(₹8,800) — fewer vehicles is not automatically cheaper.
+
+**Two baselines, because they answer different questions.** The headline saving
+is against **one round trip per farm** — collection with no aggregation, which
+is what FasalX actually replaces. The second is the same fleet visiting farms
+in listed order, which on the demo order **ties with the optimum**: four lots
+each filling most of a truck leave nothing to reorder. The UI says so rather
+than hiding it.
+
+Savings scale sharply with fragmentation, which is the smallholder case the
+problem statement describes:
+
+| Scenario                        | Optimised | Separate trips | Saving |
+| ------------------------------- | --------- | -------------- | ------ |
+| 4 farms, 80–150Q each (500Q)    | ₹8,386    | ₹8,836         | 5.1%   |
+| 12 smallholders, ~40Q (480Q)    | ₹19,841   | ₹21,547        | 7.9%   |
+| 8 smallholders, ~25Q (200Q)     | ₹9,182    | ₹12,795        | 28.2%  |
+
+**Cost model, stated so it can be argued with.** Distances are great-circle ×
+a named `ROAD_CIRCUITY_FACTOR` (1.35), **not** routed road distances. The ₹/km
+rates per vehicle class are illustrative pilot figures, not quoted freight
+rates. Both appear in the API response and on screen.
+
+The map is **Leaflet + OpenStreetMap** — no API key, so nothing to expire or
+rate-limit on demo day. Route lines are straight between stops, not road
+geometry, which matches the precision of the distances behind them.
+
+The farmer sees only their own stop: what will be collected, which truck,
+who they are sharing it with, and their share of the transport cost — because
+session 11 subtracts that share from their payout, and a deduction should be
+explained before it appears.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

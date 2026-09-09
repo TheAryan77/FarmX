@@ -7,6 +7,7 @@ import { aiRouter } from "./routes/ai.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { contractRouter } from "./routes/contract.routes.js";
 import { listingRouter } from "./routes/listing.routes.js";
+import { logisticsRouter } from "./routes/logistics.routes.js";
 import { marketRouter } from "./routes/market.routes.js";
 import { matchingRouter } from "./routes/matching.routes.js";
 import { offerRouter } from "./routes/offer.routes.js";
@@ -35,6 +36,7 @@ export function createApp(): Express {
   app.use("/ai", aiRouter);
   app.use("/contracts", contractRouter);
   app.use("/listings", listingRouter);
+  app.use("/logistics", logisticsRouter);
   app.use("/market", marketRouter);
   app.use("/matching", matchingRouter);
   app.use("/requirements", requirementRouter);

@@ -1,4 +1,4 @@
-import type { AuthUser, ContractRecord, Order } from "@fasalx/types";
+import type { AuthUser, ContractRecord, Order, Shipment } from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import { ORDER_STATUS, km, quintals, rupees, rupeesCompact, shortDate } from "@/
 import { AppShell } from "@/app/components/app-shell";
 import { ErrorPanel } from "@/app/components/error-panel";
 import { ContractPanel } from "./contract-panel";
+import { LogisticsPanel } from "./logistics-panel";
 
 export const metadata = { title: "Order · FasalX Buyer" };
 
@@ -22,12 +23,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let user: AuthUser;
   let order: Order;
   let contract: ContractRecord | null = null;
+  let shipment: Shipment | null = null;
   try {
-    [user, order, contract] = await Promise.all([
+    [user, order, contract, shipment] = await Promise.all([
       apiCall<AuthUser>("/auth/me"),
       apiCall<Order>(`/orders/${id}`),
-      // A missing contract is normal — the buyer creates it from this screen.
+      // A missing contract or shipment is normal — the buyer creates both here.
       apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
+      apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -112,8 +115,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
       <ContractPanel orderId={order.id} contract={contract} />
 
+      <LogisticsPanel orderId={order.id} shipment={shipment} />
+
       <p className="text-xs text-muted-foreground">
-        Logistics and per-farmer settlement attach to this order in later steps.
+        Per-farmer settlement attaches to this order in the next step.
       </p>
     </AppShell>
   );

@@ -168,3 +168,32 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/*
+ * Leaflet map overrides for the pickup route.
+ *
+ * The stop numbers are drawn as permanent tooltips centred on each marker, so
+ * the default tooltip chrome — white box, border, drop shadow, arrow — has to
+ * go, leaving just the digit.
+ */
+.leaflet-tooltip.fasalx-stop-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.leaflet-tooltip.fasalx-stop-label::before {
+  display: none;
+}
+
+/* Leaflet paints its own controls; keep them above the map but below dialogs. */
+.leaflet-container {
+  z-index: 0;
+  font: inherit;
+}

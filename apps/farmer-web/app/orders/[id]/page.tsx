@@ -1,4 +1,4 @@
-import type { ContractRecord, Order } from "@fasalx/types";
+import type { AuthUser, ContractRecord, Order, Shipment } from "@fasalx/types";
 import { redirect } from "next/navigation";
 import { Badge, Card, CardContent } from "@fasalx/ui";
 
@@ -7,6 +7,7 @@ import { getSessionToken } from "@/lib/session";
 import { ORDER_STATUS, quintals, rupees, shortDate } from "@/lib/format";
 import { ErrorPanel } from "@/app/components/error-panel";
 import { EscrowCard } from "@/app/components/escrow-card";
+import { PickupCard } from "@/app/components/pickup-card";
 import { PageHeader } from "@/app/components/page-header";
 
 export const metadata = { title: "Deal · FasalX Farmer" };
@@ -17,11 +18,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   let order: Order;
   let contract: ContractRecord | null = null;
+  let shipment: Shipment | null = null;
+  let user: AuthUser | null = null;
   try {
-    [order, contract] = await Promise.all([
+    [order, contract, shipment, user] = await Promise.all([
       apiCall<Order>(`/orders/${id}`),
-      // No contract yet is normal; the buyer creates it.
+      // No contract or shipment yet is normal; the buyer creates both.
       apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
+      apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
+      apiCall<AuthUser>("/auth/me").catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -62,6 +67,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       )}
 
       {contract ? <EscrowCard contract={contract} allocation={mine} /> : null}
+
+      {shipment ? <PickupCard shipment={shipment} farmerId={user?.profileId ?? null} /> : null}
 
       <Card>
         <CardContent className="space-y-2">

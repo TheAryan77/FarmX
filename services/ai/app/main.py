@@ -9,7 +9,8 @@ from fastapi import FastAPI, HTTPException
 from .config import METRICS_PATH
 from .matching import WEIGHTS, run_match
 from .predict import ModelNotTrained, load_model, predict_price
-from .schemas import MatchRequest, PriceRequest, PriceResponse
+from .routing import VEHICLE_CLASSES, optimise_route
+from .schemas import MatchRequest, PriceRequest, PriceResponse, RouteRequest
 
 app = FastAPI(
     title="FasalX AI",
@@ -63,3 +64,36 @@ def match(request: MatchRequest) -> dict:
         request.requirement.model_dump(),
         [candidate.model_dump() for candidate in request.candidates],
     )
+
+
+@app.get("/optimize/vehicles")
+def vehicle_classes() -> dict:
+    """The vehicle options and their rates, so the cost model is inspectable."""
+    return {
+        "vehicles": [
+            {
+                "key": v.key,
+                "label": v.label,
+                "capacityQuintals": v.capacity_quintals,
+                "rupeesPerKm": v.rupees_per_km,
+            }
+            for v in VEHICLE_CLASSES
+        ]
+    }
+
+
+@app.post("/optimize/route")
+def optimize_route(request: RouteRequest) -> dict:
+    """Cheapest capacity-feasible collection plan for an aggregated order.
+
+    OR-Tools CVRP over every configured vehicle class, returning the winner
+    plus the alternatives it was compared against, and two baselines so the
+    stated saving can be checked rather than taken on trust.
+    """
+    try:
+        return optimise_route(
+            request.destination.model_dump(),
+            [pickup.model_dump() for pickup in request.pickups],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

@@ -7,6 +7,7 @@ import type {
   ContractRecord,
   Order,
   Requirement,
+  Shipment,
   RequestOtpResult,
   VerifyOtpResult,
 } from "@fasalx/types";
@@ -273,6 +274,21 @@ export async function contractActionRequest(
     revalidatePath(`/orders/${contract.orderId}`);
     revalidatePath("/orders");
     return { ok: true, data: contract };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- logistics
+
+export async function optimiseRouteAction(orderId: string): Promise<ActionResult<Shipment>> {
+  try {
+    const shipment = await apiCall<Shipment>("/logistics/optimize", {
+      method: "POST",
+      body: { orderId },
+    });
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, data: shipment };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

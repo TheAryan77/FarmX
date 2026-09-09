@@ -1,7 +1,6 @@
 # FasalX AI service — Python 3.12
 #
-# Session 7 adds the price model; OR-Tools arrives with route optimisation in
-# session 10.
+# Price model (session 7) and route optimisation (session 10).
 
 fastapi==0.116.1
 uvicorn[standard]==0.35.0
@@ -17,3 +16,6 @@ xgboost==3.0.5
 
 # read-only access to PriceHistory
 psycopg[binary]==3.2.10
+
+# route optimisation
+ortools==9.15.6755

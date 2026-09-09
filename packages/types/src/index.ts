@@ -585,3 +585,81 @@ export type ContractAction =
   | "release"
   | "dispute"
   | "refund";
+
+// ---------------------------------------------------------------- logistics
+
+export type ShipmentStatus =
+  | "PLANNED"
+  | "PICKUP_SCHEDULED"
+  | "IN_TRANSIT"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export type StopStatus = "PENDING" | "ARRIVED" | "LOADED" | "SKIPPED";
+
+export interface ShipmentStop {
+  id: string;
+  sequence: number;
+  /** Which vehicle in the plan makes this stop. */
+  vehicleNumber: number;
+  farmer: { id: string; name: string; village: string; district: string };
+  lat: number;
+  lng: number;
+  quantityQuintals: number;
+  /** Estimated road distance travelled to reach this stop from the previous one. */
+  legDistanceKm: number;
+  status: StopStatus;
+  arrivedAt: string | null;
+  loadedAt: string | null;
+}
+
+/** One vehicle's leg of the plan, for drawing a route line per truck. */
+export interface ShipmentVehicle {
+  vehicleNumber: number;
+  loadQuintals: number;
+  roadKm: number;
+  /** Stop sequence numbers this vehicle visits, in order. */
+  stopSequences: number[];
+}
+
+export interface Shipment {
+  id: string;
+  orderId: string;
+  status: ShipmentStatus;
+
+  vehicleClass: string;
+  vehicleLabel: string;
+  vehicleCount: number;
+  capacityQuintals: number;
+  rupeesPerKm: number | null;
+
+  /** Estimated road distance — great-circle × a circuity factor, not routed. */
+  totalDistanceKm: number;
+  straightLineKm: number | null;
+  totalQuintals: number;
+
+  optimisedCostRupees: number;
+  /**
+   * One round trip per farm — collection without aggregation. The headline
+   * saving is measured against this because it is what FasalX replaces.
+   */
+  naiveCostRupees: number;
+  naiveDistanceKm: number;
+  /** Same fleet in listed order; often equal to optimised on a small order. */
+  sequencingCostRupees: number | null;
+
+  savingRupees: number;
+  savingPercent: number;
+
+  destinationLat: number;
+  destinationLng: number;
+  destinationLabel: string;
+
+  stops: ShipmentStop[];
+  vehicles: ShipmentVehicle[];
+
+  /** Stated so a reader can argue with the cost model rather than trust it. */
+  assumptions: { roadCircuityFactor: number; note: string; baseline: string } | null;
+
+  createdAt: string;
+}

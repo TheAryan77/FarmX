@@ -242,6 +242,56 @@ If the AI service is down or untrained, `/ai/price` returns the latest mandi
 row with `source: "fallback"` and no forecast, and the farmer card says the
 outlook is unavailable rather than inventing one.
 
+## Matching and supply aggregation
+
+| Route                          | Notes                                                |
+| ------------------------------ | ---------------------------------------------------- |
+| `POST /matching/run`           | Ranked candidates with the per-component breakdown   |
+| `POST /matching/aggregate`     | The proposed greedy fill, uncommitted                |
+| `POST /orders/aggregate`       | Commits it: one Order, many OrderAllocations         |
+| `POST /match` (AI service)     | Stateless scoring — no DB, no model artifact         |
+
+```
+score = 0.30·price + 0.25·distance + 0.20·quantity
+      + 0.15·quality + 0.10·reliability
+```
+
+Every component is normalised 0-1 **across the candidate pool**, which is what
+makes the weights mean anything: a farmer scores well on price because they are
+cheap relative to the supply actually available, not against an absolute scale.
+Reliability blends the star rating (70%) with completed-order count (30%).
+
+The buyer portal draws the score **as its own explanation** — a stacked bar
+whose segment widths are each component's weighted contribution, so the bar
+length is the score and its composition shows how it was earned. One farmer
+ranks on price, another on distance, and that is visible at a glance.
+
+**Quality is currently a constant.** Candidates are filtered to the requested
+grade before scoring, so every one of them scores 1.0 on it. The component
+keeps its weight so the other four stay proportioned as specified, and
+accepting substitute grades later is a change to the filter, not the scoring.
+
+Aggregation is a greedy fill by descending score, and may take part of the last
+farmer's lot rather than commit produce the buyer did not ask for. It fills
+against what is still **outstanding**, so a part-filled requirement only sources
+the remainder. `runningTotals` is the cumulative quantity after each pick, which
+is what the UI animates.
+
+Committing recomputes the proposal server-side rather than trusting the client —
+a farmer could have sold elsewhere between the panel rendering and the button
+being pressed — then writes the order, one allocation per farmer, and each
+listing's reservation in a single transaction.
+
+**Every farmer is paid the same settled price.** Where that exceeds their ask
+they receive more than they asked for: at ₹2,420 the four selected farmers take
+₹6,200 more than their combined asking prices. The panel shows that figure live
+as the price is changed, because moving value toward the farmer is the point.
+
+Unlike the price card, matching has **no degraded mode**: a ranking Node
+invented would not be the ranking the engine produces, and the buyer would be
+committing money against it. If the AI service is down the request fails with a
+clear message telling you to start it.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

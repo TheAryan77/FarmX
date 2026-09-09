@@ -1,7 +1,15 @@
 "use server";
 
-import type { AuthUser, Requirement, RequestOtpResult, VerifyOtpResult } from "@fasalx/types";
+import type {
+  AggregationProposal,
+  AuthUser,
+  Order,
+  Requirement,
+  RequestOtpResult,
+  VerifyOtpResult,
+} from "@fasalx/types";
 import {
+  aggregateOrderSchema,
   counterOfferSchema,
   createOfferSchema,
   createRequirementSchema,
@@ -186,6 +194,47 @@ export async function createOfferAction(input: {
     });
     revalidatePath("/offers");
     return { ok: true, data: { offerId: thread.latest.id } };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- aggregation
+
+export async function aggregateAction(
+  requirementId: string,
+): Promise<ActionResult<AggregationProposal>> {
+  try {
+    const proposal = await apiCall<AggregationProposal>("/matching/aggregate", {
+      method: "POST",
+      body: { requirementId },
+    });
+    return { ok: true, data: proposal };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function createAggregatedOrderAction(
+  requirementId: string,
+  settledPricePerQuintal: string,
+): Promise<ActionResult<Order>> {
+  const parsed = aggregateOrderSchema.safeParse({
+    requirementId,
+    ...(settledPricePerQuintal ? { settledPricePerQuintal } : {}),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the settled price" };
+  }
+
+  try {
+    const order = await apiCall<Order>("/orders/aggregate", {
+      method: "POST",
+      body: parsed.data,
+    });
+    revalidatePath("/dashboard");
+    revalidatePath("/orders");
+    return { ok: true, data: order };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

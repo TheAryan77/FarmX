@@ -1,4 +1,4 @@
-import type { AuthUser, RequirementCandidates } from "@fasalx/types";
+import type { AuthUser, MatchResult } from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -34,6 +34,8 @@ import {
 } from "@/lib/format";
 import { AppShell } from "@/app/components/app-shell";
 import { ErrorPanel } from "@/app/components/error-panel";
+import { AggregatePanel } from "./aggregate-panel";
+import { ScoreBar, ScoreLegend } from "./score-bar";
 
 export const metadata = { title: "Requirement · FasalX Buyer" };
 
@@ -47,11 +49,13 @@ export default async function RequirementDetailPage({
   const { id } = await params;
 
   let user: AuthUser;
-  let result: RequirementCandidates;
+  let result: MatchResult;
   try {
+    // /matching/run returns the same candidate pool as /requirements/:id/candidates,
+    // ranked, with the per-component reasoning attached.
     [user, result] = await Promise.all([
       apiCall<AuthUser>("/auth/me"),
-      apiCall<RequirementCandidates>(`/requirements/${id}/candidates`),
+      apiCall<MatchResult>("/matching/run", { method: "POST", body: { requirementId: id } }),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -63,7 +67,10 @@ export default async function RequirementDetailPage({
     );
   }
 
-  const { requirement, candidates, totalAvailableQuintals, satisfiable, excluded } = result;
+  const { requirement, candidates, weights, excluded } = result;
+  const totalAvailableQuintals =
+    Math.round(candidates.reduce((sum, c) => sum + c.listing.availableQuintals, 0) * 100) / 100;
+  const satisfiable = totalAvailableQuintals >= requirement.remainingQuintals;
   const status = REQUIREMENT_STATUS[requirement.status];
   const days = daysUntil(requirement.deliveryBy);
   const totalExcluded = excluded.wrongGrade + excluded.tooFar + excluded.belowMinLot;
@@ -120,6 +127,14 @@ export default async function RequirementDetailPage({
         </CardContent>
       </Card>
 
+      {requirement.remainingQuintals > 0 && candidates.length > 0 ? (
+        <AggregatePanel
+          requirementId={requirement.id}
+          remainingQuintals={requirement.remainingQuintals}
+          targetPricePerQuintal={requirement.targetPricePerQuintal}
+        />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Matching supply</CardTitle>
@@ -129,16 +144,22 @@ export default async function RequirementDetailPage({
             {requirement.minLotQuintals
               ? ` in lots of ${quintals(requirement.minLotQuintals)} or more`
               : ""}
-            . Nearest first — ranking by price, distance and reliability comes next.
+. Ranked by match score — the bar shows how each one earned it.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={satisfiable ? "success" : "warning"} size="lg">
-              {satisfiable
-                ? `Fillable — ${quintals(totalAvailableQuintals)} available`
-                : `Short — only ${quintals(totalAvailableQuintals)} available`}
-            </Badge>
+            {requirement.remainingQuintals <= 0 ? (
+              <Badge variant="default" size="lg">
+                Fully sourced
+              </Badge>
+            ) : (
+              <Badge variant={satisfiable ? "success" : "warning"} size="lg">
+                {satisfiable
+                  ? `Fillable — ${quintals(totalAvailableQuintals)} available`
+                  : `Short — only ${quintals(totalAvailableQuintals)} available`}
+              </Badge>
+            )}
             {totalExcluded > 0 ? (
               <span className="text-xs text-muted-foreground">
                 {totalExcluded} other {totalExcluded === 1 ? "listing" : "listings"} excluded:{" "}
@@ -162,24 +183,27 @@ export default async function RequirementDetailPage({
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10 text-right">#</TableHead>
                   <TableHead>Farmer</TableHead>
-                  <TableHead>Village</TableHead>
+                  <TableHead>Why this rank</TableHead>
                   <TableHead className="text-right">Distance</TableHead>
                   <TableHead className="text-right">Available</TableHead>
-                  <TableHead>Grade</TableHead>
                   <TableHead className="text-right">Asking price</TableHead>
-                  <TableHead className="text-right">Lot value</TableHead>
                   <TableHead className="text-right">Rating</TableHead>
                   <TableHead>Ready from</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {candidates.map((listing) => {
+                {candidates.map((candidate) => {
+                  const listing = candidate.listing;
                   const overTarget =
                     listing.expectedPricePerQuintal > requirement.targetPricePerQuintal;
                   return (
                     <TableRow key={listing.id}>
+                      <TableCell className="text-right text-xs font-bold text-muted-foreground tabular-nums">
+                        {candidate.rank}
+                      </TableCell>
                       <TableCell className="font-medium">
                         <Link
                           href={`/listings/${listing.id}?requirementId=${requirement.id}`}
@@ -187,16 +211,18 @@ export default async function RequirementDetailPage({
                         >
                           {listing.farmer.name}
                         </Link>
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {listing.village}
+                        </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{listing.village}</TableCell>
+                      <TableCell>
+                        <ScoreBar score={candidate.score} breakdown={candidate.breakdown} />
+                      </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {km(listing.distanceKm)}
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
                         {quintals(listing.availableQuintals)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{listing.grade}</Badge>
                       </TableCell>
                       <TableCell
                         className={`text-right tabular-nums ${
@@ -205,9 +231,6 @@ export default async function RequirementDetailPage({
                       >
                         {rupees(listing.expectedPricePerQuintal)}
                         {overTarget ? " ↑" : ""}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {rupeesCompact(listing.totalValueRupees)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {listing.farmer.rating.toFixed(1)}
@@ -232,19 +255,21 @@ export default async function RequirementDetailPage({
               </TableBody>
               <TableFooter>
                 <TableRow>
-                  <TableCell colSpan={3} className="font-medium">
+                  <TableCell colSpan={4} className="font-medium">
                     Total available
                   </TableCell>
                   <TableCell className="text-right font-bold tabular-nums">
                     {quintals(totalAvailableQuintals)}
                   </TableCell>
-                  <TableCell colSpan={6} className="text-muted-foreground">
+                  <TableCell colSpan={4} className="text-muted-foreground">
                     Needs {quintals(requirement.remainingQuintals)}
                   </TableCell>
                 </TableRow>
               </TableFooter>
             </Table>
           )}
+
+          {candidates.length > 0 ? <ScoreLegend weights={weights} /> : null}
 
           <p className="text-xs text-muted-foreground">
             Prices above your target are shown in red. Distances are straight-line from{" "}

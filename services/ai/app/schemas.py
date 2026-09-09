@@ -52,3 +52,40 @@ class PriceResponse(BaseModel):
     confidence: float
     recommendation: Literal["SELL_NOW", "HOLD", "SELL_PARTIAL"]
     model: ModelInfo
+
+
+# ---------------------------------------------------------------- matching
+
+
+class MatchRequirement(BaseModel):
+    """What the buyer needs. Quantity in quintals, price in whole rupees."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    quantityQuintals: float = Field(gt=0)
+    grade: str = Field(default="A", min_length=1, max_length=1)
+    targetPricePerQuintal: int = Field(gt=0)
+    maxDistanceKm: int = Field(default=150, gt=0)
+
+
+class MatchCandidate(BaseModel):
+    """One listing offered into the pool. Scored relative to its peers."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    listingId: str
+    farmerId: str | None = None
+    farmerName: str | None = None
+    pricePerQuintal: int = Field(gt=0)
+    availableQuintals: float = Field(gt=0)
+    distanceKm: float | None = None
+    grade: str = "A"
+    rating: float = 0.0
+    completedOrders: int = 0
+
+
+class MatchRequest(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
+    requirement: MatchRequirement
+    candidates: list[MatchCandidate]

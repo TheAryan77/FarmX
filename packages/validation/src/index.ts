@@ -222,6 +222,25 @@ export const counterOfferSchema = z.object({
 export type CreateOfferInput = z.infer<typeof createOfferSchema>;
 export type CounterOfferInput = z.infer<typeof counterOfferSchema>;
 
+// ---------------------------------------------------------------- matching
+
+export const matchingRunSchema = z.object({
+  requirementId: z.string({ error: "Choose a requirement" }).min(1, "Choose a requirement"),
+});
+
+export const aggregateOrderSchema = z.object({
+  requirementId: z.string({ error: "Choose a requirement" }).min(1, "Choose a requirement"),
+  /**
+   * One price paid to every selected farmer. Defaults to the quantity-weighted
+   * average of their asks, which is what the aggregation proposes; the buyer
+   * may settle higher to secure the whole set.
+   */
+  settledPricePerQuintal: pricePerQuintalSchema.optional(),
+});
+
+export type MatchingRunInput = z.infer<typeof matchingRunSchema>;
+export type AggregateOrderInput = z.infer<typeof aggregateOrderSchema>;
+
 export const priceQuerySchema = z.object({
   crop: cropSchema.default("wheat"),
   district: z.string().trim().min(1).max(60).default("Karnal"),

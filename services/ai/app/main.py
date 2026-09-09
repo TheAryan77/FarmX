@@ -7,8 +7,9 @@ prediction. Node never runs ML; it calls this over HTTP.
 from fastapi import FastAPI, HTTPException
 
 from .config import METRICS_PATH
+from .matching import WEIGHTS, run_match
 from .predict import ModelNotTrained, load_model, predict_price
-from .schemas import PriceRequest, PriceResponse
+from .schemas import MatchRequest, PriceRequest, PriceResponse
 
 app = FastAPI(
     title="FasalX AI",
@@ -41,3 +42,24 @@ def predict(request: PriceRequest) -> dict:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/match/weights")
+def match_weights() -> dict:
+    """The scoring weights in force, so the UI can label the breakdown."""
+    return {"weights": WEIGHTS}
+
+
+@app.post("/match")
+def match(request: MatchRequest) -> dict:
+    """Scores a candidate pool and proposes a greedy aggregation.
+
+    Deterministic and stateless: no database, no model artifact, same inputs
+    always give the same ranking. The response carries the full per-component
+    breakdown so the buyer portal can explain *why* a farmer ranked where they
+    did rather than showing an unexplained number.
+    """
+    return run_match(
+        request.requirement.model_dump(),
+        [candidate.model_dump() for candidate in request.candidates],
+    )

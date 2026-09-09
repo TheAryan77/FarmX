@@ -408,3 +408,70 @@ export interface PricePrediction {
    */
   source: "model" | "fallback";
 }
+
+// ---------------------------------------------------------------- matching
+
+/** One scored dimension, kept explainable end to end. */
+export interface MatchComponent {
+  /** The underlying value — ₹/quintal, km, quintals, or a star rating. */
+  raw: number;
+  /** That value scaled 0-1 against the candidate pool's own range. */
+  normalised: number;
+  /** normalised × this component's weight — the points it contributed. */
+  weighted: number;
+}
+
+export type MatchComponentName =
+  | "price"
+  | "distance"
+  | "quantity"
+  | "quality"
+  | "reliability";
+
+export type MatchBreakdown = Record<MatchComponentName, MatchComponent>;
+
+/** A candidate listing with its score and the reasoning behind it. */
+export interface MatchCandidate {
+  listing: Listing;
+  rank: number;
+  /** 0-1, the weighted sum of the breakdown. */
+  score: number;
+  breakdown: MatchBreakdown;
+}
+
+/** What the greedy fill proposes, before the buyer commits to it. */
+export interface AggregationAllocation {
+  listing: Listing;
+  rank: number;
+  score: number;
+  allocatedQuintals: number;
+  /** True when only part of this farmer's lot is taken. */
+  isPartial: boolean;
+  pricePerQuintal: number;
+  /** Running total after this farmer is added — what the UI animates. */
+  cumulativeQuintals: number;
+}
+
+export interface AggregationProposal {
+  requirement: Requirement;
+  allocations: AggregationAllocation[];
+
+  targetQuintals: number;
+  totalQuintals: number;
+  shortfallQuintals: number;
+  satisfiable: boolean;
+
+  /** Quantity-weighted average of the selected farmers' asking prices. */
+  weightedAveragePriceRupees: number;
+  /** What the selection costs if every farmer is paid their own ask. */
+  sumOfAsksRupees: number;
+  farmerCount: number;
+}
+
+export interface MatchResult {
+  requirement: Requirement;
+  weights: Record<MatchComponentName, number>;
+  candidates: MatchCandidate[];
+  /** Counts of supply the constraints rejected, and why. */
+  excluded: { wrongGrade: number; tooFar: number; belowMinLot: number };
+}

@@ -1,13 +1,14 @@
-import type { AuthUser, Listing, OfferThread, Order, PriceSnapshot } from "@fasalx/types";
+import type { AuthUser, Listing, OfferThread, Order, PricePrediction } from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Badge, Button, Card, CardContent } from "@fasalx/ui";
 
 import { apiCall, ApiRequestError } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
-import { quintals, rupees, shortDate } from "@/lib/format";
+import { quintals } from "@/lib/format";
 import { signOutAction } from "@/app/actions";
 import { ErrorPanel } from "@/app/components/error-panel";
+import { PriceCard } from "@/app/components/price-card";
 
 export const metadata = { title: "Home · FasalX Farmer" };
 
@@ -15,8 +16,7 @@ export const metadata = { title: "Home · FasalX Farmer" };
  * Farmer home.
  *
  * Designed for a cheap Android phone in daylight: one column, 18-20px body
- * text, 56px+ targets, and a single obvious next action. The price is the raw
- * latest PriceHistory row — session 7 replaces this card with a prediction.
+ * text, 56px+ targets, and a single obvious next action.
  */
 export default async function HomePage() {
   if (!(await getSessionToken())) redirect("/login");
@@ -34,11 +34,13 @@ export default async function HomePage() {
     );
   }
 
-  // The price card and the listing count are independent: if the market lookup
-  // fails, the farmer should still be able to reach "Sell produce".
+  // The price card and the listing count are independent: if the outlook
+  // lookup fails, the farmer should still be able to reach "Sell produce".
+  // /ai/price degrades to the latest mandi row on its own, so this only
+  // returns null when there is no price data at all.
   const [price, listings, offers, orders] = await Promise.all([
-    apiCall<PriceSnapshot>(
-      `/market/price?crop=wheat&district=${encodeURIComponent(user.district ?? "Karnal")}`,
+    apiCall<PricePrediction>(
+      `/ai/price?crop=wheat&district=${encodeURIComponent(user.district ?? "Karnal")}`,
     ).catch(() => null),
     apiCall<Listing[]>("/listings/mine").catch(() => null),
     apiCall<OfferThread[]>("/offers/mine").catch(() => null),
@@ -130,48 +132,6 @@ export default async function HomePage() {
         </Button>
       </form>
     </main>
-  );
-}
-
-function PriceCard({ price }: { price: PriceSnapshot }) {
-  const change = price.changeVs7dRupees;
-  const direction = change === null ? null : change > 0 ? "up" : change < 0 ? "down" : "flat";
-
-  return (
-    <Card className="border-primary/30 bg-primary/5">
-      <CardContent className="space-y-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <p className="text-lg font-semibold">Wheat · {price.district} mandi</p>
-          {direction ? (
-            <Badge
-              size="lg"
-              variant={direction === "up" ? "success" : direction === "down" ? "destructive" : "muted"}
-            >
-              {direction === "up" ? "↑" : direction === "down" ? "↓" : "→"}{" "}
-              {rupees(Math.abs(change ?? 0))} / 7 days
-            </Badge>
-          ) : null}
-        </div>
-
-        <p>
-          <span className="text-4xl font-bold tracking-tight">
-            {rupees(price.modalPricePerQuintal)}
-          </span>
-          <span className="ml-1 text-xl text-muted-foreground">/ quintal</span>
-        </p>
-
-        {price.minPricePerQuintal !== null && price.maxPricePerQuintal !== null ? (
-          <p className="text-base text-muted-foreground">
-            Range {rupees(price.minPricePerQuintal)} – {rupees(price.maxPricePerQuintal)}
-          </p>
-        ) : null}
-
-        <p className="text-sm text-muted-foreground">
-          Mandi rate on {shortDate(price.date)}
-          {price.source === "generated" ? " · simulated market data" : ""}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 

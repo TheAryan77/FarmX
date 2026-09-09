@@ -337,3 +337,74 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
 }
+
+// ---------------------------------------------------------------- AI price
+
+export type PriceRecommendation = "SELL_NOW" | "HOLD" | "SELL_PARTIAL";
+
+export type DemandLevel = "LOW" | "MODERATE" | "HIGH";
+
+/**
+ * How much unmet buyer demand exists on the platform right now.
+ *
+ * A real number from the marketplace, not a model output: the sum of what open
+ * requirements still need. The level is a pilot-scale bucketing of that
+ * quantity, and the underlying figure is always shown alongside so nobody has
+ * to take the label on trust.
+ */
+export interface DemandSignal {
+  level: DemandLevel;
+  /** Quintals of open requirement still to be sourced in this district. */
+  unfilledQuintals: number;
+  openRequirements: number;
+  /** Quintals currently listed and still uncommitted in this district. */
+  availableSupplyQuintals: number;
+}
+
+/** What backs any accuracy claim about the model. */
+export interface PriceModelInfo {
+  trainedAt: string | null;
+  dataSource: string | null;
+  /** Mean absolute error on the held-out period, whole rupees per quintal. */
+  maeRupees: number | null;
+  /** Mean absolute percentage error, 0-1. */
+  mape: number | null;
+  /** Error of a "price will not change" baseline, for comparison. */
+  naiveMaeRupees: number | null;
+  /** Fractional reduction in error versus that baseline. */
+  skillVsNaive: number | null;
+  trainRows: number | null;
+  testRows: number | null;
+  /** Band within which `confidence` was measured, 0-1. */
+  tolerancePct: number | null;
+}
+
+export interface PricePrediction {
+  crop: string;
+  district: string;
+  /** Date of the latest reading the forecast was made from. */
+  asOf: string;
+  horizonDays: number;
+
+  /** All whole rupees per quintal. */
+  current: number;
+  predicted: number;
+  low: number;
+  high: number;
+
+  /** Fractional change from current to predicted. */
+  deltaPct: number;
+  /** Share of held-out predictions inside the tolerance band, 0-1. */
+  confidence: number;
+  recommendation: PriceRecommendation;
+
+  demand: DemandSignal;
+  model: PriceModelInfo | null;
+
+  /**
+   * "model" when the prediction came from the trained model, "fallback" when
+   * the AI service was unreachable and this is the latest mandi reading with
+   * no forecast attached. The UI must say which.
+   */
+  source: "model" | "fallback";
+}

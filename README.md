@@ -28,10 +28,16 @@ prisma/          schema.prisma — PostgreSQL is the source of truth
 ## Setup
 
 ```bash
+brew install libomp       # macOS only — xgboost needs OpenMP
 pnpm install
 cp .env.example .env      # then fill in DATABASE_URL and the Amoy keys
 pnpm ai:setup             # creates services/ai/.venv
+pnpm ai:train             # trains and persists the price model
 ```
+
+`libomp` is not optional on macOS: xgboost's wheel does not bundle an OpenMP
+runtime and fails to import without it. The trained model is a build artifact
+and is **not** committed, so `pnpm ai:train` is required on a fresh clone.
 
 ## Running
 
@@ -189,6 +195,52 @@ The build plan names the offer field `pricePerUnit`; it is `pricePerQuintal`
 here, because a field called "per unit" invites exactly the kg/quintal
 confusion CLAUDE.md bans. Delivery dates are derived on accept (the
 requirement's deadline, else ready + 7 days) since an offer carries no date.
+
+## AI price intelligence
+
+```bash
+pnpm ai:train     # train, print real backtest metrics, persist the model
+pnpm ai:dev       # serve it on :8000 (not part of `pnpm dev`)
+```
+
+| Route                       | Notes                                                    |
+| --------------------------- | -------------------------------------------------------- |
+| `GET  /ai/price` (API)      | Proxies the model, adds demand, caches 15 min, degrades  |
+| `POST /predict/price` (AI)  | `{ crop, district, date? }` → forecast                   |
+| `GET  /model/price` (AI)    | Full training metrics — what backs any accuracy claim    |
+| `GET  /market/price` (API)  | The raw un-modelled mandi reading, still available       |
+
+**The model predicts the 7-day price *change*, not the level.** Trained on the
+absolute price it scored MAE ₹18.5 against a naive "no change" baseline of
+₹11.4 — 61% *worse* than doing nothing, with every held-out residual positive.
+That is structural: prices trend upward, the chronological test split sits at
+levels the training window never contained, and a gradient-boosted tree cannot
+predict outside the target range it has seen. Modelling the delta removes the
+trend from the target, and the forecast is reconstructed as
+`current + predicted_delta`.
+
+The split is strictly chronological, and every feature is backward-looking
+(rolling windows are shifted by one day so today's price never leaks into its
+own features).
+
+**Confidence is measured, not asserted:** the share of held-out forecasts that
+landed within 1% of the real price. `low`/`high` are the 10th/90th percentile
+of the held-out residuals — an empirical interval, not a made-up band. Training
+also prints the naive baseline and the skill against it, because an accuracy
+figure with nothing to compare it to means nothing.
+
+**Recommendation** is `SELL_NOW | HOLD | SELL_PARTIAL`, and the threshold is
+derived from the model's own error (1.5 × MAPE, floored at 0.5%): it will not
+tell a farmer to wait for a gain smaller than its typical miss.
+
+**Demand** is marketplace data, not a model output — the quintals of open buyer
+requirement still unsourced in the district. The level is a pilot-scale
+bucketing of that quantity, and the UI always prints the quantity next to the
+label.
+
+If the AI service is down or untrained, `/ai/price` returns the latest mandi
+row with `source: "fallback"` and no forecast, and the farmer card says the
+outlook is unavailable rather than inventing one.
 
 ## Conventions
 

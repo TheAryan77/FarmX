@@ -663,3 +663,93 @@ export interface Shipment {
 
   createdAt: string;
 }
+
+// ---------------------------------------------------------------- quality + settlement
+
+export type QcStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export type SettlementStatus = "PENDING" | "RELEASED" | "PAID" | "FAILED";
+
+export interface QualityCheck {
+  id: string;
+  orderId: string;
+  /** Grade the buyer actually found on delivery. */
+  gradeFound: Grade;
+  /** Grade the order was agreed at, for comparison. */
+  gradeAgreed: Grade;
+  moisturePct: number | null;
+  status: QcStatus;
+  notes: string | null;
+  /** API path to the delivery proof photo, if one was uploaded. */
+  proofUrl: string | null;
+  inspectorName: string | null;
+  checkedAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * What one farmer actually receives, and how it was arrived at.
+ *
+ * Every figure is derived from the order, the shipment and two named
+ * constants — none of it is stored as a magic number. `assumptions` carries
+ * those constants so the UI can label them rather than presenting the
+ * comparison as fact.
+ */
+export interface Settlement {
+  id: string;
+  orderId: string;
+  orderNo: string;
+  farmer: { id: string; name: string; village: string };
+
+  allocatedQuintals: number;
+  pricePerQuintal: number;
+
+  /** allocatedQuintals × pricePerQuintal */
+  grossRupees: number;
+  /** This farmer's share of the collection cost, by quantity. */
+  logisticsShareRupees: number;
+  platformFeeRupees: number;
+  /** gross − logistics − platform fee */
+  netRupees: number;
+
+  /** Illustrative estimate of the same sale through the mandi channel. */
+  traditionalEstimateRupees: number;
+  /** net − traditional estimate */
+  farmerGainRupees: number;
+  /** Gain as a share of the traditional estimate, 0-1. */
+  farmerGainPercent: number;
+
+  status: SettlementStatus;
+  releasedAt: string | null;
+  txHash: string | null;
+  createdAt: string;
+}
+
+/** The named constants behind every settlement figure. */
+export interface SettlementAssumptions {
+  platformFeeRate: number;
+  traditionalRealisationRate: number;
+  /** Plain-language account of what the traditional rate stands for. */
+  traditionalNote: string;
+  logisticsNote: string;
+}
+
+export interface SettlementView {
+  settlements: Settlement[];
+  assumptions: SettlementAssumptions;
+}
+
+/** Month-to-date figures for the farmer's own dashboard. */
+export interface FarmerEarnings {
+  monthLabel: string;
+  totalSalesRupees: number;
+  totalQuintals: number;
+  /** Quantity-weighted average price realised, whole rupees per quintal. */
+  averagePriceRealised: number;
+  /** Sum of net − traditional estimate across settled deals. */
+  additionalRealisationRupees: number;
+  orders: number;
+  successfulDeliveries: number;
+  settlements: Settlement[];
+  assumptions: SettlementAssumptions;
+}

@@ -241,6 +241,31 @@ export const aggregateOrderSchema = z.object({
 export type MatchingRunInput = z.infer<typeof matchingRunSchema>;
 export type AggregateOrderInput = z.infer<typeof aggregateOrderSchema>;
 
+// ---------------------------------------------------------------- quality
+
+export const qualityCheckSchema = z.object({
+  orderId: z.string({ error: "Choose an order" }).min(1, "Choose an order"),
+  gradeFound: gradeSchema,
+  /** Wheat is traded around 12% moisture; anything outside 0-30 is a typo. */
+  moisturePct: z.coerce
+    .number({ error: "Enter the moisture reading" })
+    .min(0, "Moisture cannot be negative")
+    .max(30, "That moisture reading looks wrong")
+    .optional(),
+  notes: z.string().trim().max(500, "Keep notes under 500 characters").optional(),
+});
+
+export const qualityRejectSchema = z.object({
+  reason: z
+    .string({ error: "Say what is wrong with the delivery" })
+    .trim()
+    .min(3, "Say what is wrong with the delivery")
+    .max(200, "Keep the reason under 200 characters"),
+});
+
+export type QualityCheckInput = z.infer<typeof qualityCheckSchema>;
+export type QualityRejectInput = z.infer<typeof qualityRejectSchema>;
+
 export const priceQuerySchema = z.object({
   crop: cropSchema.default("wheat"),
   district: z.string().trim().min(1).max(60).default("Karnal"),

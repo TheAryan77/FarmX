@@ -25,15 +25,21 @@ export class ApiRequestError extends Error {
 interface ApiCallOptions {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
+  /**
+   * Multipart payload, for endpoints that accept a file. Passed straight to
+   * fetch with no content-type header — the boundary has to be generated, and
+   * setting the header by hand breaks the upload.
+   */
+  form?: FormData;
   /** Send the session bearer token. Off for login, where none exists yet. */
   auth?: boolean;
 }
 
 export async function apiCall<T>(pathname: string, options: ApiCallOptions = {}): Promise<T> {
-  const { method = "GET", body, auth = true } = options;
+  const { method = "GET", body, form, auth = true } = options;
 
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers["content-type"] = "application/json";
+  if (body !== undefined && form === undefined) headers["content-type"] = "application/json";
 
   if (auth) {
     const token = await getSessionToken();
@@ -45,7 +51,7 @@ export async function apiCall<T>(pathname: string, options: ApiCallOptions = {})
     response = await fetch(`${API_URL}${pathname}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
       cache: "no-store",
     });
   } catch {

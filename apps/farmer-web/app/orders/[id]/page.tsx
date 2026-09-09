@@ -1,4 +1,10 @@
-import type { AuthUser, ContractRecord, Order, Shipment } from "@fasalx/types";
+import type {
+  AuthUser,
+  ContractRecord,
+  Order,
+  SettlementView,
+  Shipment,
+} from "@fasalx/types";
 import { redirect } from "next/navigation";
 import { Badge, Card, CardContent } from "@fasalx/ui";
 
@@ -7,6 +13,7 @@ import { getSessionToken } from "@/lib/session";
 import { ORDER_STATUS, quintals, rupees, shortDate } from "@/lib/format";
 import { ErrorPanel } from "@/app/components/error-panel";
 import { EscrowCard } from "@/app/components/escrow-card";
+import { PayoutCard } from "@/app/components/payout-card";
 import { PickupCard } from "@/app/components/pickup-card";
 import { PageHeader } from "@/app/components/page-header";
 
@@ -20,13 +27,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let contract: ContractRecord | null = null;
   let shipment: Shipment | null = null;
   let user: AuthUser | null = null;
+  let settlementView: SettlementView | null = null;
   try {
-    [order, contract, shipment, user] = await Promise.all([
+    [order, contract, shipment, user, settlementView] = await Promise.all([
       apiCall<Order>(`/orders/${id}`),
-      // No contract or shipment yet is normal; the buyer creates both.
+      // No contract, shipment or settlement yet is all normal.
       apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
       apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
       apiCall<AuthUser>("/auth/me").catch(() => null),
+      apiCall<SettlementView | null>(`/settlements/for-order/${id}`).catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -42,13 +51,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const status = ORDER_STATUS[order.status] ?? { text: order.status, variant: "muted" as const };
   // A farmer sees the whole order but their own share is what matters to them.
-  const mine = order.allocations[0];
+  const mine = order.allocations.find((a) => a.farmer.id === user?.profileId) ?? order.allocations[0];
+  // Settled deals lead with the payout instead of the escrow state.
+  const mySettlement = settlementView?.settlements[0];
 
   return (
     <main className="mx-auto min-h-dvh max-w-md space-y-5 p-5 pb-10">
       <PageHeader title={`Deal ${order.orderNo}`} backHref="/orders" />
 
-      {contract && (contract.escrow?.status === "LOCKED" || contract.escrow?.status === "RELEASED") ? null : (
+      {mySettlement !== undefined ? null : contract &&
+        (contract.escrow?.status === "LOCKED" || contract.escrow?.status === "RELEASED") ? null : (
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="space-y-1">
           <p className="text-base text-muted-foreground">You will receive</p>
@@ -66,7 +78,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       </Card>
       )}
 
-      {contract ? <EscrowCard contract={contract} allocation={mine} /> : null}
+      {mySettlement && settlementView ? (
+        <PayoutCard settlement={mySettlement} assumptions={settlementView.assumptions} />
+      ) : contract ? (
+        <EscrowCard contract={contract} allocation={mine} />
+      ) : null}
 
       {shipment ? <PickupCard shipment={shipment} farmerId={user?.profileId ?? null} /> : null}
 

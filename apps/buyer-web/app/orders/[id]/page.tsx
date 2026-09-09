@@ -1,4 +1,11 @@
-import type { AuthUser, ContractRecord, Order, Shipment } from "@fasalx/types";
+import type {
+  AuthUser,
+  ContractRecord,
+  Order,
+  QualityCheck,
+  SettlementView,
+  Shipment,
+} from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -13,6 +20,7 @@ import { AppShell } from "@/app/components/app-shell";
 import { ErrorPanel } from "@/app/components/error-panel";
 import { ContractPanel } from "./contract-panel";
 import { LogisticsPanel } from "./logistics-panel";
+import { QualityPanel } from "./quality-panel";
 
 export const metadata = { title: "Order · FasalX Buyer" };
 
@@ -24,13 +32,18 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let order: Order;
   let contract: ContractRecord | null = null;
   let shipment: Shipment | null = null;
+  let quality: QualityCheck | null = null;
+  let settlements: SettlementView | null = null;
   try {
-    [user, order, contract, shipment] = await Promise.all([
+    [user, order, contract, shipment, quality, settlements] = await Promise.all([
       apiCall<AuthUser>("/auth/me"),
       apiCall<Order>(`/orders/${id}`),
-      // A missing contract or shipment is normal — the buyer creates both here.
+      // Missing contract, shipment, QC or settlement is all normal — each is
+      // created from this screen in turn.
       apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
       apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
+      apiCall<QualityCheck | null>(`/quality/for-order/${id}`).catch(() => null),
+      apiCall<SettlementView | null>(`/settlements/for-order/${id}`).catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -113,13 +126,34 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </CardContent>
       </Card>
 
-      <ContractPanel orderId={order.id} contract={contract} />
+      {/*
+        Each panel seeds local state from its server prop for optimistic
+        updates. React keeps that state across re-renders, so after an action
+        in one panel refreshes the page, the others would keep showing what
+        they were first given. Keying them on the server status remounts only
+        the ones whose data actually moved.
+      */}
+      <ContractPanel
+        key={`contract-${contract?.id ?? "none"}-${contract?.status ?? "none"}`}
+        orderId={order.id}
+        contract={contract}
+      />
 
-      <LogisticsPanel orderId={order.id} shipment={shipment} />
+      <LogisticsPanel
+        key={`logistics-${shipment?.id ?? "none"}-${shipment?.status ?? "none"}`}
+        orderId={order.id}
+        shipment={shipment}
+      />
 
-      <p className="text-xs text-muted-foreground">
-        Per-farmer settlement attaches to this order in the next step.
-      </p>
+      {shipment ? (
+        <QualityPanel
+          key={`quality-${quality?.id ?? "none"}-${quality?.status ?? "none"}-${settlements?.settlements.length ?? 0}`}
+          orderId={order.id}
+          shipment={shipment}
+          check={quality}
+          settlements={settlements}
+        />
+      ) : null}
     </AppShell>
   );
 }

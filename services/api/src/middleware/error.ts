@@ -26,6 +26,21 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
 
+  // multer rejects an oversized or wrong-typed upload with its own error
+  // class; that is the client's mistake, not ours.
+  if (err instanceof Error && err.name === "MulterError") {
+    const message =
+      (err as Error & { code?: string }).code === "LIMIT_FILE_SIZE"
+        ? "That photo is too large — keep it under 8 MB"
+        : "That file could not be accepted";
+    res.status(400).json({ error: { code: "UPLOAD_REJECTED", message } });
+    return;
+  }
+  if (err instanceof Error && err.message.startsWith("Delivery proof must be")) {
+    res.status(400).json({ error: { code: "UPLOAD_REJECTED", message: err.message } });
+    return;
+  }
+
   // A client sending broken JSON is a 400, not a 500.
   if (isJsonParseError(err)) {
     res.status(400).json({

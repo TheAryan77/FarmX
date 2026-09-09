@@ -6,6 +6,7 @@ import type {
   ContractAction,
   ContractRecord,
   Order,
+  QualityCheck,
   Requirement,
   Shipment,
   RequestOtpResult,
@@ -289,6 +290,88 @@ export async function optimiseRouteAction(orderId: string): Promise<ActionResult
     });
     revalidatePath(`/orders/${orderId}`);
     return { ok: true, data: shipment };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- quality
+
+/**
+ * Records what arrived. Sent as multipart so an optional proof photo can ride
+ * along; the API's shared Zod schema coerces the string fields back.
+ */
+export async function recordQualityAction(input: {
+  orderId: string;
+  gradeFound: string;
+  moisturePct?: string;
+  notes?: string;
+}): Promise<ActionResult<QualityCheck>> {
+  const form = new FormData();
+  form.set("orderId", input.orderId);
+  form.set("gradeFound", input.gradeFound);
+  if (input.moisturePct) form.set("moisturePct", input.moisturePct);
+  if (input.notes) form.set("notes", input.notes);
+
+  try {
+    const check = await apiCall<QualityCheck>("/quality", { method: "POST", form });
+    revalidatePath(`/orders/${input.orderId}`);
+    return { ok: true, data: check };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function approveQualityAction(
+  qualityCheckId: string,
+  orderId: string,
+): Promise<ActionResult<QualityCheck>> {
+  try {
+    const check = await apiCall<QualityCheck>(`/quality/${qualityCheckId}/approve`, {
+      method: "POST",
+    });
+    revalidatePath(`/orders/${orderId}`);
+    revalidatePath("/orders");
+    return { ok: true, data: check };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function rejectQualityAction(
+  qualityCheckId: string,
+  orderId: string,
+  reason: string,
+): Promise<ActionResult<QualityCheck>> {
+  try {
+    const check = await apiCall<QualityCheck>(`/quality/${qualityCheckId}/reject`, {
+      method: "POST",
+      body: { reason },
+    });
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, data: check };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- shipment steps
+
+export async function confirmPickupAction(shipmentId: string, orderId: string): Promise<ActionResult<null>> {
+  try {
+    await apiCall(`/logistics/${shipmentId}/pickup-confirm`, { method: "POST", body: {} });
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function confirmDeliveryAction(shipmentId: string, orderId: string): Promise<ActionResult<null>> {
+  try {
+    await apiCall(`/logistics/${shipmentId}/deliver`, { method: "POST", form: new FormData() });
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, data: null };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

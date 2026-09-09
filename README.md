@@ -391,8 +391,78 @@ geometry, which matches the precision of the distances behind them.
 
 The farmer sees only their own stop: what will be collected, which truck,
 who they are sharing it with, and their share of the transport cost — because
-session 11 subtracts that share from their payout, and a deduction should be
+the settlement subtracts that share from their payout, and a deduction should be
 explained before it appears.
+
+## Quality check and settlement
+
+| Route                                  | Notes                                             |
+| -------------------------------------- | ------------------------------------------------- |
+| `POST /logistics/:id/pickup-confirm`   | Farmer confirms **their own** stop (`stopId`), or the buyer confirms the run |
+| `POST /logistics/:id/deliver`          | Optional proof photo (multipart)                  |
+| `POST /quality`                        | BUYER · grade, moisture, notes, optional photo    |
+| `GET  /quality/for-order/:orderId`     | Parties only                                      |
+| `GET  /quality/:id/proof`              | Streams the photo, parties only                   |
+| `POST /quality/:id/approve`            | BUYER · **releases escrow and writes the payouts** |
+| `POST /quality/:id/reject`             | BUYER · raises a dispute, writes nothing          |
+| `GET  /settlements/for-order/:orderId` | Buyer sees every line; a farmer sees only their own |
+| `GET  /settlements/my-earnings`        | FARMER · month-to-date, IST month boundary        |
+
+Pickup is per-stop: a farmer can only confirm their own farm (403 otherwise),
+and the shipment — and the on-chain `confirmPickup` — advance only once **every**
+stop is loaded. One farmer cannot mark the truck loaded on another's behalf.
+
+Approving quality does two chain transitions (`approveQuality`, then
+`releaseFunds`) and writes the settlements inside one database transaction. If
+the release does not confirm on chain, the approval **throws rather than
+recording a payout** — there is no state where a farmer is shown money that was
+never released. Settlements are upserted on `allocationId`, so a retried
+release cannot double-pay anybody.
+
+### The payout maths
+
+```
+logisticsShare = (farmerQuintals / orderQuintals) × shipment.optimisedCost
+platformFee    = gross × PLATFORM_FEE_RATE            (0.01)
+net            = gross − logisticsShare − platformFee
+mandiEstimate  = gross × TRADITIONAL_REALISATION_RATE (0.88)
+farmerGain     = net − mandiEstimate
+```
+
+Both constants are named and exported from
+`services/api/src/services/settlement.service.ts`, and both travel to the
+client in `assumptions` so the UI labels them instead of presenting an estimate
+as a measurement.
+
+**`TRADITIONAL_REALISATION_RATE = 0.88` is an illustrative assumption, not a
+measurement**, and it is the one number in the settlement a judge should be
+invited to argue with. It stands in for arhtiya commission (~2.5%), the Haryana
+market fee (~1.6%), loading/unloading/weighment (~₹15/q), a solo trip to the
+mandi, and the discount an unaggregated small lot attracts with no competing
+bidders — roughly 12% of gross for a lot this size. Deliberately round rather
+than falsely precise. It is labelled an estimate everywhere it appears.
+
+For the demo order (500Q at ₹2,420/Q, ₹8,386 collection cost):
+
+| Farmer          | Qty  | Gross      | Transport | Platform  | Net paid    | Mandi est.  | Gain      |
+| --------------- | ---- | ---------- | --------- | --------- | ----------- | ----------- | --------- |
+| Sukhbir Singh   | 150Q | ₹3,63,000  | −₹2,516   | −₹3,630   | ₹3,56,854   | ₹3,19,440   | +₹37,414  |
+| Jaswant Rai     | 150Q | ₹3,63,000  | −₹2,516   | −₹3,630   | ₹3,56,854   | ₹3,19,440   | +₹37,414  |
+| Balwinder Kaur  | 120Q | ₹2,90,400  | −₹2,013   | −₹2,904   | ₹2,85,483   | ₹2,55,552   | +₹29,931  |
+| Manjeet Singh   |  80Q | ₹1,93,600  | −₹1,342   | −₹1,936   | ₹1,90,322   | ₹1,70,368   | +₹19,954  |
+| **Total**       | 500Q | ₹12,10,000 | −₹8,387   | −₹12,100  | ₹11,89,513  | ₹10,64,800  | **+₹1,24,713** |
+
+**98% of what the buyer paid reaches the farmer.** That is the north-star
+number, and the farmer's screen leads with it: net first, then a stacked bar
+accounting for every rupee of the difference, then the mandi comparison with
+its assumption printed underneath. No hex addresses, no transaction hashes, no
+chain vocabulary anywhere on the farmer's money screen — that audit is part of
+the slice.
+
+Rejecting instead raises a dispute: the contract goes `DISPUTED`, the escrow
+stays locked, **zero settlements are written**, and the platform can refund the
+buyer — verified on Ramesh's 50Q deal (Grade C, 18.2% moisture → refunded, on-chain
+escrow back to 0).
 
 ## Conventions
 

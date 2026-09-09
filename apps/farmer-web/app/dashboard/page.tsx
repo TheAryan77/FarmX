@@ -112,6 +112,10 @@ export default async function HomePage() {
             </Link>
           </Button>
         </div>
+
+        <Button asChild size="touch" variant="outline" className="w-full text-lg">
+          <Link href="/earnings">My earnings</Link>
+        </Button>
       </div>
 
       {liveListings.length > 0 ? (

@@ -292,6 +292,63 @@ invented would not be the ranking the engine produces, and the buyer would be
 committing money against it. If the AI service is down the request fails with a
 clear message telling you to start it.
 
+## Contract and escrow
+
+```bash
+pnpm chain          # local Hardhat node on :8545
+pnpm chain:deploy   # deploys FasalXEscrow, writes the address into .env
+pnpm chain:test     # 26 contract tests
+```
+
+Development runs against a **local Hardhat node**. Polygon Amoy is the same
+code with different env values — `pnpm --filter @fasalx/blockchain deploy:amoy`
+once `DEPLOYER_PRIVATE_KEY` holds test POL. Nothing in the contract, the API or
+the UI changes; setting `CHAIN_EXPLORER_URL` is what turns the timeline's
+transaction hashes into explorer links.
+
+| Route                              | Notes                                            |
+| ---------------------------------- | ------------------------------------------------ |
+| `POST /contracts`                  | Generates the PDF, hashes it, registers the deal |
+| `POST /contracts/:id/{accept,fund,pickup,deliver,approve-quality,release}` | One escrow transition each |
+| `POST /contracts/:id/{dispute,refund}` | The failure path                             |
+| `GET  /contracts/:id`              | Our record + **live** chain state + tx hashes    |
+| `GET  /contracts/for-order/:orderId` | What the order screens use                     |
+| `GET  /contracts/:id/pdf`          | The agreed document                              |
+
+**What is on-chain:** deal id, buyer address, seller address, amount in rupees,
+status, timestamps, and the SHA-256 of the contract PDF. Nothing else. No name,
+phone, village, or bank reference ever reaches it — a test asserts the struct
+has no field that could hold one.
+
+**On `seller`:** farmers hold no wallets, and an aggregated order has four of
+them. `seller` is the platform's settlement address, which distributes to each
+farmer off-chain against the allocations in Postgres. The chain's job is to
+make the money immovable until quality is approved, not to be the payment rail
+to twelve smallholders.
+
+**Rupees vs the token:** the contract records the rupee value for the audit
+trail; the value actually held is native token, related by a fixed demo
+constant (`WEI_PER_RUPEE`), **not an exchange rate**. The farmer only ever sees
+rupees.
+
+The escrow is the only place money moves, so the tests weigh the invalid
+transitions more heavily than the happy path: 26 cases covering out-of-order
+calls, access control (only the buyer can fund or approve quality — not even
+the platform), double-release, disputing after approval, and the fact that the
+contract has no `receive()` so it can never hold an unattributed balance.
+
+**Degraded mode.** A chain write that fails never fails the request. The
+intended transition is recorded as a `ContractEvent` with `degraded: true`, the
+off-chain status does **not** advance (we never claim a state the chain would
+deny), and the UI labels it. Verified by killing the node mid-flow: contracts
+still generate and hash, reads still work, the rest of the marketplace is
+untouched.
+
+**The farmer never sees the chain.** Their screen shows "🔒 Payment secured"
+with their own rupee share and a plain-language progress list — no addresses,
+no hashes, no token amounts, no chain name. Audited by regex against the
+rendered page.
+
 ## Conventions
 
 - TypeScript strict, no `any`. Money is **integer rupees**; quantity is **quintals (Q), 2dp** — never kg.

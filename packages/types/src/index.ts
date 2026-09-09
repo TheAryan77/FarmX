@@ -28,6 +28,20 @@ export type OfferStatus = "PENDING" | "COUNTERED" | "ACCEPTED" | "REJECTED" | "E
 
 export type OfferParty = "BUYER" | "FARMER";
 
+/** The on-chain escrow state machine, mirrored in FasalXEscrow.sol. */
+export type ContractStatus =
+  | "CREATED"
+  | "ACCEPTED"
+  | "FUNDED"
+  | "PICKED_UP"
+  | "DELIVERED"
+  | "QC_APPROVED"
+  | "RELEASED"
+  | "DISPUTED"
+  | "REFUNDED";
+
+export type EscrowStatus = "PENDING" | "LOCKED" | "RELEASED" | "REFUNDED";
+
 export type OrderStatus =
   | "CREATED"
   | "CONTRACTED"
@@ -475,3 +489,99 @@ export interface MatchResult {
   /** Counts of supply the constraints rejected, and why. */
   excluded: { wrongGrade: number; tooFar: number; belowMinLot: number };
 }
+
+// ---------------------------------------------------------------- contracts
+
+/** One recorded transition, with the transaction that carried it. */
+export interface ContractEvent {
+  id: string;
+  fromStatus: ContractStatus | null;
+  toStatus: ContractStatus;
+  txHash: string | null;
+  /** Explorer link, when the chain has one. Local chains do not. */
+  explorerUrl: string | null;
+  blockNumber: number | null;
+  /**
+   * True when the transition was recorded off-chain because the chain was
+   * unreachable. The UI must label these — they are an intent, not a fact.
+   */
+  degraded: boolean;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface EscrowView {
+  status: EscrowStatus;
+  /** Whole rupees held. The farmer only ever sees this, never a token amount. */
+  amountRupees: number;
+  fundedTxHash: string | null;
+  fundedExplorerUrl: string | null;
+  releasedTxHash: string | null;
+  releasedExplorerUrl: string | null;
+  fundedAt: string | null;
+  releasedAt: string | null;
+}
+
+/** What the chain itself currently says, read live rather than from our copy. */
+export interface OnChainDeal {
+  dealId: string;
+  status: ContractStatus | null;
+  amountRupees: number;
+  /** Native token held, as a string to survive JSON. Never shown to a farmer. */
+  escrowedWei: string;
+  contractHash: string;
+  buyerAddress: string;
+  sellerAddress: string;
+}
+
+export interface ChainInfo {
+  name: string;
+  chainId: number;
+  explorerUrl: string | null;
+  escrowAddress: string | null;
+}
+
+export interface ContractRecord {
+  id: string;
+  contractNo: string;
+  orderId: string;
+  order: Order;
+
+  /** Our record of where the deal has got to. */
+  status: ContractStatus;
+  amountRupees: number;
+
+  /** SHA-256 of the contract PDF — the value written on-chain. */
+  pdfSha256: string | null;
+  /** API path to download the PDF. Not a filesystem path. */
+  pdfUrl: string | null;
+
+  onChainDealId: string | null;
+  buyerAddress: string | null;
+  sellerAddress: string | null;
+  chainId: number | null;
+
+  escrow: EscrowView | null;
+  events: ContractEvent[];
+
+  /**
+   * Live chain state, or null when the chain could not be read. When this
+   * disagrees with `status`, the chain is the authority on escrow and the UI
+   * says so.
+   */
+  onChain: OnChainDeal | null;
+  chain: ChainInfo;
+  /** Set when the chain is unreachable, so the UI can explain rather than fail. */
+  degradedReason: string | null;
+}
+
+/** Actions that drive the escrow forward, as the API exposes them. */
+export type ContractAction =
+  | "accept"
+  | "fund"
+  | "pickup"
+  | "deliver"
+  | "approve-quality"
+  | "release"
+  | "dispute"
+  | "refund";

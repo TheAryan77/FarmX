@@ -7,7 +7,18 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node", "mocha", "chai"]
   },
-  "include": ["./hardhat.config.ts", "./scripts/**/*.ts", "./test/**/*.ts"]
+  "include": [
+    "./hardhat.config.ts",
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    // hardhat-viem writes typed contract declarations here on compile, which
+    // is what makes escrow.read.getDeal() return a typed struct instead of
+    // unknown. They are gitignored build output, so `pnpm compile` must run
+    // before typechecking on a fresh clone.
+    "./artifacts/**/*.d.ts"
+  ]
 }

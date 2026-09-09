@@ -5,6 +5,7 @@ import { env } from "./env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { aiRouter } from "./routes/ai.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { contractRouter } from "./routes/contract.routes.js";
 import { listingRouter } from "./routes/listing.routes.js";
 import { marketRouter } from "./routes/market.routes.js";
 import { matchingRouter } from "./routes/matching.routes.js";
@@ -32,6 +33,7 @@ export function createApp(): Express {
 
   app.use("/auth", authRouter);
   app.use("/ai", aiRouter);
+  app.use("/contracts", contractRouter);
   app.use("/listings", listingRouter);
   app.use("/market", marketRouter);
   app.use("/matching", matchingRouter);

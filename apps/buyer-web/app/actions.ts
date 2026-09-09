@@ -3,6 +3,8 @@
 import type {
   AggregationProposal,
   AuthUser,
+  ContractAction,
+  ContractRecord,
   Order,
   Requirement,
   RequestOtpResult,
@@ -235,6 +237,42 @@ export async function createAggregatedOrderAction(
     revalidatePath("/dashboard");
     revalidatePath("/orders");
     return { ok: true, data: order };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ---------------------------------------------------------------- contracts
+
+export async function createContractAction(
+  orderId: string,
+): Promise<ActionResult<ContractRecord>> {
+  try {
+    const contract = await apiCall<ContractRecord>("/contracts", {
+      method: "POST",
+      body: { orderId },
+    });
+    revalidatePath(`/orders/${orderId}`);
+    revalidatePath("/orders");
+    return { ok: true, data: contract };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function contractActionRequest(
+  contractId: string,
+  action: ContractAction,
+  reason?: string,
+): Promise<ActionResult<ContractRecord>> {
+  try {
+    const contract = await apiCall<ContractRecord>(`/contracts/${contractId}/${action}`, {
+      method: "POST",
+      ...(reason === undefined ? {} : { body: { reason } }),
+    });
+    revalidatePath(`/orders/${contract.orderId}`);
+    revalidatePath("/orders");
+    return { ok: true, data: contract };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

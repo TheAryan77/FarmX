@@ -37,6 +37,12 @@ cache/
 typechain-types/
 blockchain/deployments/
 
+# generated contract PDFs — object storage in production
+services/api/storage/
+
+# generated ABI is COMMITTED on purpose (see blockchain/scripts/export-abi.ts);
+# only the raw hardhat artifacts are ignored
+
 # prisma
 prisma/migrations/dev.db*
 

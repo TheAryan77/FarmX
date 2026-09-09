@@ -27,6 +27,19 @@ const envSchema = z.object({
     .string()
     .default("http://localhost:3000,http://localhost:3001,http://localhost:3002"),
   AI_SERVICE_URL: z.string().url().default("http://localhost:8000"),
+
+  // ---------------------------------------------------------------- chain
+  // Development points at a local Hardhat node; Polygon Amoy is the same
+  // shape with different values. All optional, because the marketplace must
+  // run before anything is deployed.
+  CHAIN_RPC_URL: z.string().url().default("http://127.0.0.1:8545"),
+  CHAIN_ID: z.coerce.number().int().positive().default(31337),
+  CHAIN_NAME: z.string().default("Hardhat local"),
+  CHAIN_EXPLORER_URL: z.string().default(""),
+  ESCROW_CONTRACT_ADDRESS: z.string().default(""),
+  PLATFORM_PRIVATE_KEY: z.string().default(""),
+  BUYER_PRIVATE_KEY: z.string().default(""),
+  SETTLEMENT_ADDRESS: z.string().default(""),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,4 +1,4 @@
-import type { AuthUser, Order } from "@fasalx/types";
+import type { AuthUser, ContractRecord, Order } from "@fasalx/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -11,6 +11,7 @@ import { getSessionToken } from "@/lib/session";
 import { ORDER_STATUS, km, quintals, rupees, rupeesCompact, shortDate } from "@/lib/format";
 import { AppShell } from "@/app/components/app-shell";
 import { ErrorPanel } from "@/app/components/error-panel";
+import { ContractPanel } from "./contract-panel";
 
 export const metadata = { title: "Order · FasalX Buyer" };
 
@@ -20,10 +21,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   let user: AuthUser;
   let order: Order;
+  let contract: ContractRecord | null = null;
   try {
-    [user, order] = await Promise.all([
+    [user, order, contract] = await Promise.all([
       apiCall<AuthUser>("/auth/me"),
       apiCall<Order>(`/orders/${id}`),
+      // A missing contract is normal — the buyer creates it from this screen.
+      apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -106,8 +110,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </CardContent>
       </Card>
 
+      <ContractPanel orderId={order.id} contract={contract} />
+
       <p className="text-xs text-muted-foreground">
-        Contract, escrow, logistics and settlement attach to this order in later steps.
+        Logistics and per-farmer settlement attach to this order in later steps.
       </p>
     </AppShell>
   );

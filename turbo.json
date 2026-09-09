@@ -5,6 +5,11 @@
     "AI_SERVICE_URL",
     "AMOY_RPC_URL",
     "API_URL",
+    "BUYER_PRIVATE_KEY",
+    "CHAIN_EXPLORER_URL",
+    "CHAIN_ID",
+    "CHAIN_NAME",
+    "CHAIN_RPC_URL",
     "DATABASE_URL",
     "DEPLOYER_PRIVATE_KEY",
     "ESCROW_CONTRACT_ADDRESS",
@@ -12,7 +17,9 @@
     "JWT_SECRET",
     "NEXT_PUBLIC_API_URL",
     "NODE_ENV",
-    "OTP_ACCEPT_ANY"
+    "OTP_ACCEPT_ANY",
+    "PLATFORM_PRIVATE_KEY",
+    "SETTLEMENT_ADDRESS"
   ],
   "tasks": {
     "dev": {

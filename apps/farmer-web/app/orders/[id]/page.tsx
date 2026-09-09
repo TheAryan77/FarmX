@@ -1,4 +1,4 @@
-import type { Order } from "@fasalx/types";
+import type { ContractRecord, Order } from "@fasalx/types";
 import { redirect } from "next/navigation";
 import { Badge, Card, CardContent } from "@fasalx/ui";
 
@@ -6,6 +6,7 @@ import { apiCall, ApiRequestError } from "@/lib/api";
 import { getSessionToken } from "@/lib/session";
 import { ORDER_STATUS, quintals, rupees, shortDate } from "@/lib/format";
 import { ErrorPanel } from "@/app/components/error-panel";
+import { EscrowCard } from "@/app/components/escrow-card";
 import { PageHeader } from "@/app/components/page-header";
 
 export const metadata = { title: "Deal · FasalX Farmer" };
@@ -15,8 +16,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
 
   let order: Order;
+  let contract: ContractRecord | null = null;
   try {
-    order = await apiCall<Order>(`/orders/${id}`);
+    [order, contract] = await Promise.all([
+      apiCall<Order>(`/orders/${id}`),
+      // No contract yet is normal; the buyer creates it.
+      apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
+    ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
     return (
@@ -37,6 +43,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     <main className="mx-auto min-h-dvh max-w-md space-y-5 p-5 pb-10">
       <PageHeader title={`Deal ${order.orderNo}`} backHref="/orders" />
 
+      {contract && (contract.escrow?.status === "LOCKED" || contract.escrow?.status === "RELEASED") ? null : (
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="space-y-1">
           <p className="text-base text-muted-foreground">You will receive</p>
@@ -52,6 +59,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </p>
         </CardContent>
       </Card>
+      )}
+
+      {contract ? <EscrowCard contract={contract} allocation={mine} /> : null}
 
       <Card>
         <CardContent className="space-y-2">
@@ -90,9 +100,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </Card>
       ) : null}
 
-      <p className="text-base text-muted-foreground">
-        Contract, payment and pickup appear here as the deal progresses.
-      </p>
+      {contract === null ? (
+        <p className="text-base text-muted-foreground">
+          The buyer is preparing the agreement. Payment details appear here once it is ready.
+        </p>
+      ) : null}
     </main>
   );
 }

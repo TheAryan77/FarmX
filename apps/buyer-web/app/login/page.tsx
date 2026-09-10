@@ -1,13 +1,29 @@
+import type { AuthUser } from "@fasalx/types";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@fasalx/ui";
 
-import { getSessionToken } from "@/lib/session";
+import { apiCall } from "@/lib/api";
+import { APP_ROLE, getSessionToken } from "@/lib/session";
 import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Sign in · FasalX Buyer" };
 
+/**
+ * The presence of a cookie is not a session — see the farmer app's login page
+ * for the redirect loop this guard exists to prevent.
+ */
+async function hasLiveSession(): Promise<boolean> {
+  if (!(await getSessionToken())) return false;
+  try {
+    const user = await apiCall<AuthUser>("/auth/me");
+    return user.role === APP_ROLE;
+  } catch {
+    return false;
+  }
+}
+
 export default async function LoginPage() {
-  if (await getSessionToken()) redirect("/dashboard");
+  if (await hasLiveSession()) redirect("/dashboard");
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-muted/40 p-6">

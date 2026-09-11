@@ -5,7 +5,6 @@ import { env } from "../env.js";
 import { HttpError } from "../lib/errors.js";
 import { prisma } from "../lib/prisma.js";
 import {
-  ADVANCE_RATE,
   createRazorpayOrder,
   fundingAmount,
   isConfigured,
@@ -65,7 +64,7 @@ export async function createPaymentIntent(
     );
   }
 
-  const { rupees, isAdvance } = fundingAmount(contract.amountRupees);
+  const { rupees, isAdvance, balanceRupees } = fundingAmount(contract.amountRupees);
   const order = await createRazorpayOrder(rupees, `fasalx-${contract.contractNo}`);
 
   await prisma.payment.create({
@@ -84,7 +83,7 @@ export async function createPaymentIntent(
     amountRupees: rupees,
     contractAmountRupees: contract.amountRupees,
     isAdvance,
-    advanceRate: ADVANCE_RATE,
+    balanceRupees,
     maxSinglePaymentRupees: RAZORPAY_MAX_RUPEES,
     contractNo: contract.contractNo,
   };

@@ -38,29 +38,37 @@ const API = "https://api.razorpay.com/v1";
  */
 export const RAZORPAY_MAX_RUPEES = env.RAZORPAY_MAX_RUPEES;
 
-/** Share of the order collected up front when the total exceeds the ceiling. */
-export const ADVANCE_RATE = env.RAZORPAY_ADVANCE_RATE;
-
 export interface FundingAmount {
+  /** Collected now. */
   rupees: number;
+  /** True when the order is larger than one payment can carry. */
   isAdvance: boolean;
+  /** Still owed after this payment. Zero when paying in full. */
+  balanceRupees: number;
 }
 
 /**
  * What to actually charge for an order of this size.
  *
- * Under the ceiling the buyer pays in full. Above it they pay a percentage
- * advance, which is both under the cap and how bulk agricultural procurement
- * commonly works — the balance settles on delivery. The flag travels with it
- * so no screen can imply the whole sum was collected.
+ * Under the ceiling the buyer pays in full. Above it they pay the largest
+ * amount the account will take, as an advance — which is how bulk
+ * agricultural procurement commonly works anyway: a deposit on agreement, the
+ * balance on delivery.
+ *
+ * The balance travels with it so every screen can state what is still owed.
+ * Nothing here may imply the whole sum was collected when it was not; the
+ * on-chain escrow still records the full contract value, and that is the
+ * figure the farmer is ultimately paid against.
  */
 export function fundingAmount(orderRupees: number): FundingAmount {
   if (orderRupees <= RAZORPAY_MAX_RUPEES) {
-    return { rupees: orderRupees, isAdvance: false };
+    return { rupees: orderRupees, isAdvance: false, balanceRupees: 0 };
   }
-  const advance = Math.round(orderRupees * ADVANCE_RATE);
-  // A 10% advance on a very large order could itself exceed the ceiling.
-  return { rupees: Math.min(advance, RAZORPAY_MAX_RUPEES), isAdvance: true };
+  return {
+    rupees: RAZORPAY_MAX_RUPEES,
+    isAdvance: true,
+    balanceRupees: orderRupees - RAZORPAY_MAX_RUPEES,
+  };
 }
 
 export function isConfigured(): boolean {

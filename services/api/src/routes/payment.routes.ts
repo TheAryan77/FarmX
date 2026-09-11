@@ -2,7 +2,7 @@ import { confirmPaymentSchema, failPaymentSchema } from "@fasalx/validation";
 import { Router } from "express";
 import type { Router as ExpressRouter } from "express";
 
-import { ADVANCE_RATE, RAZORPAY_MAX_RUPEES } from "../lib/razorpay.js";
+import { RAZORPAY_MAX_RUPEES } from "../lib/razorpay.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import {
@@ -30,7 +30,6 @@ paymentRouter.get("/status", (_req, res) => {
     data: {
       configured: paymentsConfigured(),
       maxSinglePaymentRupees: RAZORPAY_MAX_RUPEES,
-      advanceRate: ADVANCE_RATE,
     },
   });
 });

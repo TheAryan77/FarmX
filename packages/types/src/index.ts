@@ -975,7 +975,6 @@ export type PaymentStatus = "CREATED" | "PAID" | "FAILED";
 export interface PaymentSettings {
   configured: boolean;
   maxSinglePaymentRupees: number;
-  advanceRate: number;
 }
 
 /** What the browser needs to open Razorpay checkout. Never the key secret. */
@@ -987,9 +986,10 @@ export interface PaymentIntent {
   amountRupees: number;
   /** The contract's full value, for comparison when this is an advance. */
   contractAmountRupees: number;
-  /** True when Razorpay's per-order ceiling forced a part payment. */
+  /** True when the order is larger than one payment can carry. */
   isAdvance: boolean;
-  advanceRate: number;
+  /** Still owed after this payment. Zero when paying in full. */
+  balanceRupees: number;
   maxSinglePaymentRupees: number;
   contractNo: string;
 }

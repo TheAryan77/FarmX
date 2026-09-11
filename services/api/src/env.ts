@@ -49,8 +49,6 @@ const envSchema = z.object({
    * non-KYC merchant — so this is tunable per account.
    */
   RAZORPAY_MAX_RUPEES: z.coerce.number().int().positive().default(500_000),
-  /** Fraction collected up front when an order exceeds the ceiling. */
-  RAZORPAY_ADVANCE_RATE: z.coerce.number().gt(0).max(1).default(0.1),
   PLATFORM_PRIVATE_KEY: z.string().default(""),
   BUYER_PRIVATE_KEY: z.string().default(""),
   SETTLEMENT_ADDRESS: z.string().default(""),

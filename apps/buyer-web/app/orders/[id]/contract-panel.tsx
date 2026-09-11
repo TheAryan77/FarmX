@@ -275,7 +275,6 @@ export function ContractPanel({
                 contractId={contract.id}
                 amountRupees={contract.amountRupees}
                 maxSinglePaymentRupees={payments.maxSinglePaymentRupees}
-                advanceRate={payments.advanceRate}
               />
             ) : null}
             {contract.status === "ACCEPTED" && payments && !payments.configured ? (

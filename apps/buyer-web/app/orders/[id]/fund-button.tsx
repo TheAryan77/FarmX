@@ -60,12 +60,10 @@ export function FundButton({
   contractId,
   amountRupees,
   maxSinglePaymentRupees,
-  advanceRate,
 }: {
   contractId: string;
   amountRupees: number;
   maxSinglePaymentRupees: number;
-  advanceRate: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -152,22 +150,32 @@ export function FundButton({
   }
 
   const working = pending || busy;
-  // Mirrors fundingAmount() on the server, from the same numbers it uses.
+  // Mirrors fundingAmount() on the server, from the same number it uses.
   const isAdvance = amountRupees > maxSinglePaymentRupees;
-  const charge = isAdvance
-    ? Math.min(Math.round(amountRupees * advanceRate), maxSinglePaymentRupees)
-    : amountRupees;
+  const charge = isAdvance ? maxSinglePaymentRupees : amountRupees;
+  const balance = amountRupees - charge;
+  const sharePercent = amountRupees > 0 ? (charge / amountRupees) * 100 : 0;
 
   return (
     <div className="space-y-2">
       <Button onClick={fund} disabled={working}>
-        {working ? "Opening payment…" : `Pay ${rupees(charge)} to fund escrow`}
+        {working
+          ? "Opening payment…"
+          : isAdvance
+            ? `Pay ${rupees(charge)} advance`
+            : `Pay ${rupees(charge)} to fund escrow`}
       </Button>
       {isAdvance ? (
+        /*
+         * Both numbers, always. The advance is what actually leaves the
+         * buyer's account; the balance is what the farmer is still owed, and
+         * the on-chain escrow records the full contract value regardless.
+         * Showing only one of them would misrepresent the other.
+         */
         <p className="text-xs text-muted-foreground">
-          {Math.round(advanceRate * 100)}% advance — a single payment is capped at{" "}
-          {rupees(maxSinglePaymentRupees)} and this order is {rupees(amountRupees)}. The balance
-          settles on delivery.
+          Advance of {rupees(charge)} — {sharePercent < 1 ? "under 1" : Math.round(sharePercent)}%
+          of the {rupees(amountRupees)} contract. Balance{" "}
+          <span className="font-medium text-foreground">{rupees(balance)}</span> due on delivery.
         </p>
       ) : null}
       {note ? <p className="text-sm font-medium text-success">{note}</p> : null}

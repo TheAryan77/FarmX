@@ -1,6 +1,7 @@
 import type {
   AuthUser,
   ContractRecord,
+  MessageThread,
   Order,
   PaymentSettings,
   QualityCheck,
@@ -20,6 +21,7 @@ import { ORDER_STATUS, km, quintals, rupees, rupeesCompact, shortDate } from "@/
 import { AppShell } from "@/app/components/app-shell";
 import { ErrorPanel } from "@/app/components/error-panel";
 import { ContractPanel } from "./contract-panel";
+import { MessagePanel } from "./message-panel";
 import { LogisticsPanel } from "./logistics-panel";
 import { QualityPanel } from "./quality-panel";
 
@@ -36,8 +38,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let quality: QualityCheck | null = null;
   let settlements: SettlementView | null = null;
   let payments: PaymentSettings | null = null;
+  let threads: MessageThread[] = [];
   try {
-    [user, order, contract, shipment, quality, settlements, payments] = await Promise.all([
+    [user, order, contract, shipment, quality, settlements, payments, threads] =
+      await Promise.all([
       apiCall<AuthUser>("/auth/me"),
       apiCall<Order>(`/orders/${id}`),
       // Missing contract, shipment, QC or settlement is all normal — each is
@@ -49,6 +53,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       // Limits come from the API so the fund button cannot disagree with what
       // the server will actually charge.
       apiCall<PaymentSettings>("/payments/status").catch(() => null),
+      apiCall<MessageThread[]>(`/messages/for-order/${id}`).catch(() => []),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -158,6 +163,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           shipment={shipment}
           check={quality}
           settlements={settlements}
+        />
+      ) : null}
+
+      {/* Direct contact with the suppliers on this order. Phone numbers appear
+          here and nowhere else in the buyer app — see message-panel.tsx. */}
+      {threads.length > 0 ? (
+        <MessagePanel
+          key={`messages-${threads.reduce((n, t) => n + t.messages.length, 0)}`}
+          orderId={order.id}
+          threads={threads}
         />
       ) : null}
     </AppShell>

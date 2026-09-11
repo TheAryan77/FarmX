@@ -4,6 +4,7 @@ import type {
   Order,
   SettlementView,
   Shipment,
+  MessageThread,
 } from "@fasalx/types";
 import { redirect } from "next/navigation";
 import { Badge, Card, CardContent } from "@fasalx/ui";
@@ -15,6 +16,7 @@ import { ErrorPanel } from "@/app/components/error-panel";
 import { EscrowCard } from "@/app/components/escrow-card";
 import { PayoutCard } from "@/app/components/payout-card";
 import { PickupCard } from "@/app/components/pickup-card";
+import { MessagePanel } from "./message-panel";
 import { PageHeader } from "@/app/components/page-header";
 
 export const metadata = { title: "Deal · FasalX Farmer" };
@@ -28,14 +30,16 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let shipment: Shipment | null = null;
   let user: AuthUser | null = null;
   let settlementView: SettlementView | null = null;
+  let threads: MessageThread[] = [];
   try {
-    [order, contract, shipment, user, settlementView] = await Promise.all([
+    [order, contract, shipment, user, settlementView, threads] = await Promise.all([
       apiCall<Order>(`/orders/${id}`),
       // No contract, shipment or settlement yet is all normal.
       apiCall<ContractRecord | null>(`/contracts/for-order/${id}`).catch(() => null),
       apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
       apiCall<AuthUser>("/auth/me").catch(() => null),
       apiCall<SettlementView | null>(`/settlements/for-order/${id}`).catch(() => null),
+      apiCall<MessageThread[]>(`/messages/for-order/${id}`).catch(() => []),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -85,6 +89,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       ) : null}
 
       {shipment ? <PickupCard shipment={shipment} farmerId={user?.profileId ?? null} /> : null}
+
+      {/* Contact the buyer directly — see message-panel.tsx for why the call
+          button outranks the chat. */}
+      {threads[0] ? <MessagePanel orderId={id} thread={threads[0]} /> : null}
 
       <Card>
         <CardContent className="space-y-2">

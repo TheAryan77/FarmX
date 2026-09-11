@@ -313,3 +313,17 @@ export const failPaymentSchema = z.object({
   razorpayOrderId: z.string({ error: "Missing payment order" }).min(1, "Missing payment order"),
   reason: z.string().trim().max(200).default("Checkout was not completed"),
 });
+
+/** One message between the two parties to an order. */
+export const sendMessageSchema = z.object({
+  orderId: z.string({ error: "Choose an order" }).min(1, "Choose an order"),
+  /** Which farmer's thread. Optional for a farmer — it can only be their own. */
+  farmerId: z.string().min(1).optional(),
+  body: z
+    .string({ error: "Type a message" })
+    .trim()
+    .min(1, "Type a message")
+    .max(1000, "Keep messages under 1,000 characters"),
+});
+
+export type SendMessageInput = z.infer<typeof sendMessageSchema>;

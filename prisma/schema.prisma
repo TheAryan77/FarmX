@@ -152,6 +152,7 @@ model User {
   buyer          BuyerProfile?
   fpo            FpoProfile?
   inspectedItems QualityCheck[] @relation("InspectorChecks")
+  messagesSent   Message[]      @relation("MessagesSent")
 
   @@index([role])
 }
@@ -187,6 +188,7 @@ model FarmerProfile {
   allocations   OrderAllocation[]
   shipmentStops ShipmentStop[]
   settlements   Settlement[]
+  messages      Message[]
 
   @@index([district])
   @@index([fpoId])
@@ -365,6 +367,7 @@ model Order {
   shipment     Shipment?
   qualityCheck QualityCheck?
   settlements  Settlement[]
+  messages     Message[]
 
   @@index([buyerId, status])
 }
@@ -425,6 +428,32 @@ model Contract {
   events   ContractEvent[]
   escrow   Escrow?
   payments Payment[]
+}
+
+/// One message between the buyer on an order and one farmer supplying it.
+///
+/// The thread is the (orderId, farmerId) pair rather than a table of its own:
+/// the buyer side is always the order's buyer, so an aggregated order has one
+/// thread per farmer and the farmers never see each other. Grouping four
+/// suppliers into a single room would leak who else is filling the order and
+/// at what price.
+model Message {
+  id       String @id @default(cuid())
+  orderId  String
+  farmerId String
+
+  senderUserId String
+  body         String
+
+  /// Set when the other side has opened the thread.
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  order  Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  farmer FarmerProfile @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  sender User          @relation("MessagesSent", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, farmerId, createdAt])
 }
 
 /// A Razorpay funding attempt against a contract.

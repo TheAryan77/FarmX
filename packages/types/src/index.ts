@@ -993,3 +993,37 @@ export interface PaymentIntent {
   maxSinglePaymentRupees: number;
   contractNo: string;
 }
+
+// ----------------------------------------------------------------- messages
+
+/**
+ * Who the other side of a thread is, including how to reach them.
+ *
+ * A phone number is only ever attached to someone you are already trading
+ * with — see message.service.ts for why that gate matters.
+ */
+export interface MessageContact {
+  name: string;
+  phone: string;
+  role: Role;
+  /** Village for a farmer, company for a buyer. */
+  subtitle: string;
+}
+
+export interface Message {
+  id: string;
+  body: string;
+  /** True when the signed-in user wrote it. */
+  mine: boolean;
+  senderName: string;
+  createdAt: string;
+}
+
+export interface MessageThread {
+  orderId: string;
+  orderNo: string;
+  farmerId: string;
+  contact: MessageContact;
+  messages: Message[];
+  unread: number;
+}

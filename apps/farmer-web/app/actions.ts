@@ -4,6 +4,7 @@ import type {
   AuthUser,
   ChatAnswer,
   Listing,
+  MessageThread,
   RequestOtpResult,
   VerifyOtpResult,
 } from "@fasalx/types";
@@ -12,6 +13,7 @@ import {
   counterOfferSchema,
   createListingSchema,
   requestOtpSchema,
+  sendMessageSchema,
   verifyOtpSchema,
 } from "@fasalx/validation";
 import { revalidatePath } from "next/cache";
@@ -190,5 +192,43 @@ export async function askAssistantAction(
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
+  }
+}
+
+
+// ------------------------------------------------------------------ messages
+
+export async function sendMessageAction(
+  orderId: string,
+  body: string,
+  farmerId?: string,
+): Promise<ActionResult<MessageThread[]>> {
+  const parsed = sendMessageSchema.safeParse({
+    orderId,
+    body,
+    ...(farmerId ? { farmerId } : {}),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Type a message" };
+  }
+
+  try {
+    const data = await apiCall<MessageThread[]>("/messages", {
+      method: "POST",
+      body: parsed.data,
+    });
+    revalidatePath(`/orders/${orderId}`);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+/** Best-effort: a failure to mark read must never surface to the user. */
+export async function markThreadReadAction(orderId: string, farmerId: string): Promise<void> {
+  try {
+    await apiCall(`/messages/for-order/${orderId}/${farmerId}/read`, { method: "POST" });
+  } catch {
+    // Intentionally silent.
   }
 }

@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { toQuintals } from "../lib/serialize.js";
 import { getPriceOutlook } from "./ai.service.js";
 import { requireFarmerProfile } from "./listing.service.js";
+import { listMyRequirements } from "./requirement.service.js";
 
 /**
  * The assistant's context layer.
@@ -28,14 +29,17 @@ const DEFAULT_DISTRICT = "Karnal";
 async function farmerFacts(userId: string): Promise<Record<string, unknown>> {
   const farmer = await requireFarmerProfile(userId);
 
-  const [listings, openOffers, allocations, settlement] = await Promise.all([
+  const [listings, pendingOffers, allocations, settlement] = await Promise.all([
     prisma.produceListing.findMany({
       where: { farmerId: farmer.id, status: { in: ["ACTIVE", "PARTIALLY_ALLOCATED"] } },
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    prisma.offer.count({
+    prisma.offer.findMany({
       where: { listing: { farmerId: farmer.id }, status: "PENDING", initiatedBy: "BUYER" },
+      include: { buyer: { select: { companyName: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
     }),
     prisma.orderAllocation.findMany({
       where: { farmerId: farmer.id },
@@ -67,7 +71,13 @@ async function farmerFacts(userId: string): Promise<Record<string, unknown>> {
       expectedPricePerQuintal: listing.expectedPricePerQuintal,
       status: listing.status,
     })),
-    openOffers,
+    openOffers: pendingOffers.length,
+    offers: pendingOffers.map((offer) => ({
+      from: offer.buyer.companyName,
+      pricePerQuintal: offer.pricePerQuintal,
+      quantityQuintals: toQuintals(offer.quantityQuintals),
+      expiresAt: offer.expiresAt?.toISOString() ?? null,
+    })),
     marketToday: outlook
       ? { district: outlook.district, modalPricePerQuintal: outlook.current }
       : null,
@@ -129,15 +139,50 @@ async function buyerFacts(userId: string): Promise<Record<string, unknown>> {
       orderBy: { createdAt: "desc" },
     }));
 
-  const openRequirements = await prisma.buyerRequirement.count({
-    where: { buyerId: buyer.id, status: { in: ["OPEN", "MATCHING", "PARTIALLY_FULFILLED"] } },
+  // Requirements in full, not a count. A count told the assistant that
+  // something had changed without telling it what, so a buyer who had just
+  // posted a requirement got an answer that made no mention of it.
+  //
+  // Read through the requirement service rather than the table: fulfilment is
+  // summed from order allocations there, and CLAUDE.md is explicit that there
+  // is no parallel business logic.
+  const allRequirements = await listMyRequirements(userId);
+  const requirements = allRequirements
+    .filter((requirement) =>
+      ["OPEN", "MATCHING", "PARTIALLY_FULFILLED"].includes(requirement.status),
+    )
+    .slice(0, 5);
+
+  // Every order still in flight, so a buyer running several at once is not
+  // answered about only one of them.
+  const activeOrders = await prisma.order.findMany({
+    where: { buyerId: buyer.id, status: { notIn: ["SETTLED", "CANCELLED"] } },
+    orderBy: { createdAt: "desc" },
+    take: 5,
   });
 
   const shipment = order?.shipment ?? null;
 
   return {
     company: buyer.companyName,
-    openRequirements,
+    requirements: requirements.map((requirement) => ({
+      crop: requirement.crop,
+      grade: requirement.grade,
+      quantityQuintals: requirement.quantityQuintals,
+      committedQuintals: requirement.allocatedQuintals,
+      remainingQuintals: requirement.remainingQuintals,
+      fulfilmentPercent: requirement.fulfilmentPercent,
+      targetPricePerQuintal: requirement.targetPricePerQuintal,
+      maxDistanceKm: requirement.maxDistanceKm,
+      deliveryBy: requirement.deliveryBy,
+      status: requirement.status,
+    })),
+    activeOrders: activeOrders.map((row) => ({
+      orderNo: row.orderNo,
+      status: row.status,
+      quintals: toQuintals(row.totalQuintals),
+      pricePerQuintal: row.settledPricePerQuintal,
+    })),
     order: order
       ? {
           orderNo: order.orderNo,

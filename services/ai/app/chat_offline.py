@@ -70,6 +70,29 @@ VEHICLE_LABEL = {
     "truck_multi_axle": {"en": "multi-axle truck", "hi": "मल्टी-एक्सल ट्रक"},
 }
 
+MONTHS = {
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"],
+    "hi": ["जन", "फ़र", "मार्च", "अप्रैल", "मई", "जून",
+           "जुल", "अग", "सित", "अक्तू", "नव", "दिस"],
+}
+
+
+def short_date(value: Any, lang: str) -> str:
+    """"2026-09-28" → "28 Sept 2026". Matches how the web apps write dates."""
+    text = str(value or "")
+    parts = text.split("-")
+    if len(parts) != 3:
+        return text or "—"
+    try:
+        year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    except ValueError:
+        return text
+    if not 1 <= month <= 12:
+        return text
+    return f"{day} {MONTHS.get(lang, MONTHS['en'])[month - 1]} {year}"
+
+
 RECOMMENDATION = {
     "SELL_NOW": {"en": "Sell now", "hi": "अभी बेचें"},
     "SELL_PARTIAL": {"en": "Sell part of it now", "hi": "कुछ हिस्सा अभी बेचें"},
@@ -81,6 +104,8 @@ L = {
                "hi": "आपके पास {q} {grade} गेहूं {p} प्रति क्विंटल पर सूचीबद्ध है।"},
     "no_listing": {"en": "You have no active listing right now.",
                    "hi": "अभी आपकी कोई सक्रिय लिस्टिंग नहीं है।"},
+    "listed_total": {"en": "Across {n} listings that is {q} in total.",
+                     "hi": "कुल {n} लिस्टिंग में {q} है।"},
     "market": {"en": "Today's Karnal rate is {p} per quintal.",
                "hi": "करनाल में आज का भाव {p} प्रति क्विंटल है।"},
     "forecast": {"en": "In 7 days it is predicted at {p} per quintal.",
@@ -106,6 +131,12 @@ L = {
                     "hi": "इस ऑर्डर के लिए अभी कोई मार्ग तय नहीं हुआ है।"},
     "no_order": {"en": "You have no active order right now.",
                  "hi": "अभी आपका कोई सक्रिय ऑर्डर नहीं है।"},
+    "req": {"en": "Requirement: {q} Grade {g} at {p} per quintal, {c} committed ({pct}%), deliver by {d}.",
+            "hi": "आवश्यकता: {q} ग्रेड {g}, {p} प्रति क्विंटल, {c} तय ({pct}%), {d} तक डिलीवरी।"},
+    "req_none": {"en": "You have no open requirements right now.",
+                 "hi": "अभी आपकी कोई खुली आवश्यकता नहीं है।"},
+    "offer": {"en": "Offer from {b}: {q} at {p} per quintal.",
+              "hi": "{b} की ओर से प्रस्ताव: {q}, {p} प्रति क्विंटल।"},
     "offline": {
         "en": "I can only show your summary right now. Ask about your crop, price or payment.",
         "hi": "अभी मैं केवल आपका सारांश दिखा सकता हूँ। फसल, भाव या भुगतान के बारे में पूछें।",
@@ -134,13 +165,19 @@ def farmer_summary(facts: dict[str, Any], lang: str) -> list[str]:
 
     listings = facts.get("listings") or []
     if listings:
-        first = listings[0]
-        lines.append(
-            _t("listed", lang,
-               q=quintals(first.get("quantityQuintals")),
-               grade=f"Grade {first.get('grade')}" if lang == "en" else f"ग्रेड {first.get('grade')}",
-               p=rupees(first.get("expectedPricePerQuintal")))
-        )
+        # Every listing, not just the newest — a farmer with two lots at
+        # different prices was previously told about only one of them.
+        for listing in listings[:3]:
+            grade = listing.get("grade")
+            lines.append(
+                _t("listed", lang,
+                   q=quintals(listing.get("quantityQuintals")),
+                   grade=f"Grade {grade}" if lang == "en" else f"ग्रेड {grade}",
+                   p=rupees(listing.get("expectedPricePerQuintal")))
+            )
+        if len(listings) > 1:
+            total = sum(float(l.get("quantityQuintals") or 0) for l in listings)
+            lines.append(_t("listed_total", lang, n=len(listings), q=quintals(total)))
     else:
         lines.append(_t("no_listing", lang))
 
@@ -155,10 +192,19 @@ def farmer_summary(facts: dict[str, Any], lang: str) -> list[str]:
         if rec:
             lines.append(_t("advice", lang, r=rec[lang if lang in rec else "en"]))
 
-    open_offers = facts.get("openOffers")
-    if open_offers:
-        lines.append(_t("offers", lang, n=open_offers))
-    elif open_offers == 0:
+    offers = facts.get("offers") or []
+    if offers:
+        lines.append(_t("offers", lang, n=len(offers)))
+        # Named, priced and live — a bare count told the farmer something had
+        # happened without telling them whether it was worth reading.
+        for offer in offers[:3]:
+            lines.append(
+                _t("offer", lang,
+                   b=offer.get("from", "—"),
+                   q=quintals(offer.get("quantityQuintals")),
+                   p=rupees(offer.get("pricePerQuintal")))
+            )
+    else:
         lines.append(_t("no_offers", lang))
 
     payout = facts.get("latestPayout") or {}
@@ -179,6 +225,22 @@ def farmer_summary(facts: dict[str, Any], lang: str) -> list[str]:
 
 def buyer_summary(facts: dict[str, Any], lang: str) -> list[str]:
     lines: list[str] = []
+
+    # Requirements first: a buyer who has just posted one is asking about it.
+    requirements = facts.get("requirements") or []
+    if requirements:
+        for requirement in requirements[:3]:
+            lines.append(
+                _t("req", lang,
+                   q=quintals(requirement.get("quantityQuintals")),
+                   g=requirement.get("grade", "—"),
+                   p=rupees(requirement.get("targetPricePerQuintal")),
+                   c=quintals(requirement.get("committedQuintals")),
+                   pct=requirement.get("fulfilmentPercent", 0),
+                   d=short_date(requirement.get("deliveryBy"), lang))
+            )
+    else:
+        lines.append(_t("req_none", lang))
 
     order = facts.get("order") or {}
     if order.get("orderNo"):
@@ -224,10 +286,11 @@ _SUMMARY_WORDS = (
     "sell", "sold", "sale", "hold", "wait", "offer", "listing", "earn",
     "payment", "paid", "pay", "money", "order", "route", "logistics",
     "transport", "delivery", "shipment", "vehicle", "cost", "saving", "saved",
-    "quality", "farmer",
+    "quality", "farmer", "requirement", "requirements", "demand", "sourcing",
+    "source", "need", "buying", "procure", "procurement",
     "सारांश", "हाल", "भाव", "कीमत", "बाज़ार", "मंडी", "फसल", "गेहूं", "बेच", "बेचूँ",
     "रोक", "प्रस्ताव", "लिस्टिंग", "भुगतान", "पैसा", "पैसे", "कमाई", "ऑर्डर", "मार्ग",
-    "परिवहन", "लागत", "बचत", "गुणवत्ता", "स्थिति",
+    "परिवहन", "लागत", "बचत", "गुणवत्ता", "स्थिति", "आवश्यकता", "मांग", "खरीद",
 )
 
 

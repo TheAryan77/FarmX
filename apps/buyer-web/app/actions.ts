@@ -3,6 +3,7 @@
 import type {
   AggregationProposal,
   AuthUser,
+  ChatAnswer,
   ContractAction,
   ContractRecord,
   Order,
@@ -14,6 +15,7 @@ import type {
 } from "@fasalx/types";
 import {
   aggregateOrderSchema,
+  chatAskSchema,
   counterOfferSchema,
   createOfferSchema,
   createRequirementSchema,
@@ -372,6 +374,26 @@ export async function confirmDeliveryAction(shipmentId: string, orderId: string)
     await apiCall(`/logistics/${shipmentId}/deliver`, { method: "POST", form: new FormData() });
     revalidatePath(`/orders/${orderId}`);
     return { ok: true, data: null };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+
+// ------------------------------------------------------------------ assistant
+
+export async function askAssistantAction(
+  question: string,
+  language: "en" | "hi",
+): Promise<ActionResult<ChatAnswer>> {
+  const parsed = chatAskSchema.safeParse({ question, language });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Type a question" };
+  }
+
+  try {
+    const data = await apiCall<ChatAnswer>("/chat", { method: "POST", body: parsed.data });
+    return { ok: true, data };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
   }

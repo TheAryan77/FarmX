@@ -6,11 +6,12 @@ prediction. Node never runs ML; it calls this over HTTP.
 
 from fastapi import FastAPI, HTTPException
 
+from .chat import ChatUnavailable, answer as chat_answer
 from .config import METRICS_PATH
 from .matching import WEIGHTS, run_match
 from .predict import ModelNotTrained, load_model, predict_price
 from .routing import VEHICLE_CLASSES, optimise_route
-from .schemas import MatchRequest, PriceRequest, PriceResponse, RouteRequest
+from .schemas import ChatRequest, MatchRequest, PriceRequest, PriceResponse, RouteRequest
 
 app = FastAPI(
     title="FasalX AI",
@@ -97,3 +98,22 @@ def optimize_route(request: RouteRequest) -> dict:
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/chat")
+def chat(request: ChatRequest) -> dict:
+    """Answers one question using only the facts the caller supplies.
+
+    The caller — always the Node API, never a browser — gathers the person's
+    own rows and passes them in. This service holds no session and looks
+    nothing up, so it cannot leak one user's data into another's answer.
+    """
+    try:
+        return chat_answer(
+            request.role,
+            request.language,
+            request.question,
+            request.facts,
+        )
+    except ChatUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

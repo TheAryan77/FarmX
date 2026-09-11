@@ -28,5 +28,10 @@ class Settings(BaseSettings):
     database_url: str = ""
     ai_port: int = 8000
 
+    # Chat assistant. Absent in a checkout with no key — the /chat endpoint
+    # then reports itself unavailable rather than the service failing to boot.
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-latest"
+
 
 settings = Settings()

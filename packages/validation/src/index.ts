@@ -289,3 +289,15 @@ export const kycStatusSchema = z.object({
     error: "Pick a KYC status",
   }),
 });
+
+/** One question to the assistant, in one of the two supported languages. */
+export const chatAskSchema = z.object({
+  question: z
+    .string({ error: "Type a question" })
+    .trim()
+    .min(1, "Type a question")
+    .max(500, "Keep the question under 500 characters"),
+  language: z.enum(["en", "hi"], { error: "Pick a language" }).default("en"),
+});
+
+export type ChatAskInput = z.infer<typeof chatAskSchema>;

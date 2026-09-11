@@ -6,7 +6,7 @@ from __future__ import annotations
 # unaliased import would be shadowed by that field when pydantic resolves the
 # string annotation, leaving `date | None` evaluating to `None | None`.
 from datetime import date as DateType
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -113,3 +113,12 @@ class RouteRequest(BaseModel):
 
     destination: RoutePoint
     pickups: list[RoutePickup] = Field(min_length=1)
+
+
+class ChatRequest(BaseModel):
+    """One question, plus every number the answer is allowed to contain."""
+
+    role: Literal["FARMER", "BUYER"]
+    language: Literal["hi", "en"] = "en"
+    question: str = Field(min_length=1, max_length=500)
+    facts: dict[str, Any] = Field(default_factory=dict)

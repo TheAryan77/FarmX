@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Badge, Button } from "@fasalx/ui";
 
 import { signOutAction } from "@/app/actions";
+import { Assistant } from "./assistant";
 
 /** Top bar shared by every signed-in buyer page. Desktop-first and compact. */
 export function AppShell({ user, children }: { user: AuthUser; children: React.ReactNode }) {
@@ -41,6 +42,8 @@ export function AppShell({ user, children }: { user: AuthUser; children: React.R
         </div>
       </header>
       <main className="mx-auto max-w-7xl space-y-6 px-6 py-8">{children}</main>
+      {/* Signed-in pages only — AppShell is never rendered on /login. */}
+      <Assistant />
     </div>
   );
 }

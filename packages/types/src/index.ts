@@ -951,3 +951,18 @@ export interface AdminOrderDetail {
   } | null;
   assumptions: SettlementAssumptions;
 }
+
+// -------------------------------------------------------------------- chat
+
+export type ChatLanguage = "en" | "hi";
+
+export interface ChatAnswer {
+  answer: string;
+  language: ChatLanguage;
+  /**
+   * True when the answer came from the offline summary rather than the model.
+   * Surfaced so the UI can say so — passing a template off as the assistant's
+   * own reasoning would be a small lie told repeatedly.
+   */
+  offline: boolean;
+}

@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from "./middleware/error.js";
 import { adminRouter } from "./routes/admin.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
+import { chatRouter } from "./routes/chat.routes.js";
 import { contractRouter } from "./routes/contract.routes.js";
 import { listingRouter } from "./routes/listing.routes.js";
 import { logisticsRouter } from "./routes/logistics.routes.js";
@@ -38,6 +39,7 @@ export function createApp(): Express {
   app.use("/admin", adminRouter);
   app.use("/auth", authRouter);
   app.use("/ai", aiRouter);
+  app.use("/chat", chatRouter);
   app.use("/contracts", contractRouter);
   app.use("/listings", listingRouter);
   app.use("/logistics", logisticsRouter);

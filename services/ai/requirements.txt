@@ -19,3 +19,5 @@ psycopg[binary]==3.2.10
 
 # route optimisation
 ortools==9.15.6755
+# chat assistant (session: farmer/buyer chatbot)
+google-genai==2.23.0

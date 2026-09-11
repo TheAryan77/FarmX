@@ -59,16 +59,33 @@ export const CONTRACT_STATE: Record<
   },
 };
 
-/** The one action a buyer can take from each state, if any. */
+/**
+ * The one action a buyer can take from each state, if any.
+ *
+ * Quality approval and release are **not** here on purpose. Offering them
+ * walked the escrow to RELEASED without recording a single payout: the order
+ * read as settled, the escrow read as released, and every farmer's earnings
+ * screen stayed empty with nothing to explain why. Both steps now happen only
+ * through the quality panel below, which is the path that pays people. The API
+ * no longer routes them either, so this is presentation matching the contract
+ * rather than the UI politely declining to press a button that still works.
+ */
 export const NEXT_ACTION: Partial<
-  Record<ContractStatus, { action: "accept" | "fund" | "pickup" | "deliver" | "approve-quality" | "release"; label: string }>
+  Record<ContractStatus, { action: "accept" | "fund" | "pickup" | "deliver"; label: string }>
 > = {
   CREATED: { action: "accept", label: "Sign contract" },
   ACCEPTED: { action: "fund", label: "Fund escrow" },
   FUNDED: { action: "pickup", label: "Confirm pickup" },
   PICKED_UP: { action: "deliver", label: "Confirm delivery" },
-  DELIVERED: { action: "approve-quality", label: "Approve quality" },
-  QC_APPROVED: { action: "release", label: "Release payment" },
+};
+
+/**
+ * States whose next step lives in the quality panel. Without this the card
+ * would simply end with no action and no explanation, which reads as broken.
+ */
+export const QUALITY_HANDOFF: Partial<Record<ContractStatus, string>> = {
+  DELIVERED: "Record the quality check below to approve and release payment.",
+  QC_APPROVED: "Approve the quality check below to release payment to the farmers.",
 };
 
 /** The escrow lifecycle in order, for drawing a timeline with future steps. */

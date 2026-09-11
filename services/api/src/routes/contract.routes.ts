@@ -60,10 +60,17 @@ contractRouter.get<{ id: string }>("/:id/pdf", requireAuth, async (req, res) => 
 });
 
 /**
- * One route per escrow transition. The service enforces the state machine and
- * who is allowed to sign; the contract enforces it again on-chain.
+ * One route per escrow transition — but deliberately **not** `approve-quality`
+ * or `release`.
+ *
+ * Those two are reachable only through `POST /quality/:id/approve`, because
+ * that is the only path that writes the farmers' payouts. Exposing them here
+ * let an operator walk the escrow to RELEASED from the contract panel, which
+ * marked the order SETTLED while paying nobody — the farmer's earnings screen
+ * stayed empty and nothing said so. The service still performs both
+ * transitions; it just no longer accepts instructions to do them out of band.
  */
-for (const action of ["accept", "fund", "pickup", "deliver", "approve-quality", "release"] as const) {
+for (const action of ["accept", "fund", "pickup", "deliver"] as const) {
   contractRouter.post<{ id: string }>(`/:id/${action}`, requireAuth, async (req, res) => {
     const { sub, role } = req.auth!;
     res.json({ data: await transitionContract(req.params.id, sub, role, action) });

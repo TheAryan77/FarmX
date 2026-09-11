@@ -11,6 +11,7 @@ import {
   CONTRACT_SEQUENCE,
   CONTRACT_STATE,
   NEXT_ACTION,
+  QUALITY_HANDOFF,
   shortHash,
 } from "@/lib/contract-format";
 
@@ -80,6 +81,7 @@ export function ContractPanel({
 
   const state = CONTRACT_STATE[contract.status];
   const next = NEXT_ACTION[contract.status];
+  const handoff = QUALITY_HANDOFF[contract.status];
   const reachedIndex = CONTRACT_SEQUENCE.indexOf(contract.status);
   const canDispute = ["FUNDED", "PICKED_UP", "DELIVERED"].includes(contract.status);
 
@@ -252,7 +254,7 @@ export function ContractPanel({
             </Button>
           </div>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {next ? (
               <Button
                 disabled={pending}
@@ -262,6 +264,10 @@ export function ContractPanel({
               >
                 {pending ? "Working…" : next.label}
               </Button>
+            ) : null}
+            {/* Says where the next step lives, rather than ending in silence. */}
+            {handoff ? (
+              <p className="text-sm text-muted-foreground">{handoff}</p>
             ) : null}
             {canDispute ? (
               <Button variant="outline" size="sm" onClick={() => setDisputing(true)}>

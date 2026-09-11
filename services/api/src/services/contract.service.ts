@@ -560,6 +560,41 @@ export async function transitionContract(
     throw HttpError.forbidden("Only the buyer can approve quality");
   }
 
+  /**
+   * Backstop: escrow is never released for produce nobody inspected.
+   *
+   * The primary guarantee is that `release` has no HTTP route — the only way
+   * in is the quality-approval flow, which writes the payouts. This is the
+   * second line: if a future route ever reaches here directly, an order with
+   * no quality check at all still cannot pay out.
+   *
+   * It deliberately checks only that a check *exists*, not that it is
+   * approved: the legitimate flow marks the row APPROVED after this call
+   * returns, so requiring APPROVED here would block the very path it is meant
+   * to protect. That makes this a narrower guard than the route surface, and
+   * it is documented as such rather than sold as complete.
+   */
+  if (action === "release") {
+    const check = await prisma.qualityCheck.findUnique({
+      where: { orderId: row.orderId },
+      select: { status: true },
+    });
+    if (check === null) {
+      throw new HttpError(
+        409,
+        "QC_REQUIRED",
+        "Record a quality check before releasing the escrow — releasing without one would pay nobody",
+      );
+    }
+    if (check.status === "REJECTED") {
+      throw new HttpError(
+        409,
+        "QC_REJECTED",
+        "Quality was rejected on this order, so the escrow cannot be released",
+      );
+    }
+  }
+
   if (!spec.from.includes(row.status)) {
     throw new HttpError(
       409,

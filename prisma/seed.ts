@@ -624,6 +624,17 @@ async function main(): Promise<void> {
     },
   });
 
+  // Operations account. Admins have no profile table — the role on User is
+  // the whole of it, because nothing about an operator is domain data.
+  await prisma.user.create({
+    data: {
+      phone: "9800000001",
+      name: "FasalX Operations",
+      role: Role.ADMIN,
+      language: "en",
+    },
+  });
+
   for (const spec of FARMERS) {
     await prisma.farmerProfile.create({
       data: {
@@ -757,7 +768,10 @@ async function main(): Promise<void> {
     ),
   );
   console.log(`  ${"".padEnd(15)} ${String(winnerSum).padStart(3)}Q  total`);
-  console.log(`\ndemo logins  —  farmer 9876543210 (Ramesh Kumar) · buyer 9812345678 (ABC Foods)\n`);
+  console.log(
+    `\ndemo logins  —  farmer 9876543210 (Ramesh Kumar) · buyer 9812345678 (ABC Foods)` +
+      `\n               admin  9800000001 (FasalX Operations)\n`,
+  );
 }
 
 main()

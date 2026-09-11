@@ -3,6 +3,7 @@ import express, { type Express } from "express";
 
 import { env } from "./env.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { adminRouter } from "./routes/admin.routes.js";
 import { aiRouter } from "./routes/ai.routes.js";
 import { authRouter } from "./routes/auth.routes.js";
 import { contractRouter } from "./routes/contract.routes.js";
@@ -34,6 +35,7 @@ export function createApp(): Express {
     res.json({ data: { status: "ok", ts: new Date().toISOString() } });
   });
 
+  app.use("/admin", adminRouter);
   app.use("/auth", authRouter);
   app.use("/ai", aiRouter);
   app.use("/contracts", contractRouter);

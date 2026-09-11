@@ -753,3 +753,201 @@ export interface FarmerEarnings {
   settlements: Settlement[];
   assumptions: SettlementAssumptions;
 }
+
+// ------------------------------------------------------------------- admin
+
+/**
+ * Platform-level figures for the operations dashboard.
+ *
+ * CLAUDE.md's north star is value reaching the farmer per transaction, so the
+ * admin view leads with the same number the farmer sees — just summed across
+ * every settled deal instead of one. Nothing here is stored: it is all derived
+ * from orders, settlements and shipments at read time.
+ */
+export interface AdminImpact {
+  settledOrders: number;
+  quintalsTraded: number;
+  grossValueRupees: number;
+  paidToFarmersRupees: number;
+  logisticsCostRupees: number;
+  platformFeeRupees: number;
+  /** Sum of net − mandi estimate across every settlement. */
+  extraVsTraditionalRupees: number;
+  /** Weighted, as a fraction: 0.12 is 12% more than the traditional channel. */
+  averageGainPercent: number;
+  /** Fraction of gross that reached farmers. The headline ratio. */
+  farmerSharePercent: number;
+  farmersPaid: number;
+}
+
+export interface AdminNetwork {
+  farmers: number;
+  buyers: number;
+  fpos: number;
+  activeListings: number;
+  listedQuintals: number;
+  openRequirements: number;
+  requiredQuintals: number;
+}
+
+export interface AdminPipelineRow {
+  status: OrderStatus;
+  orders: number;
+  quintals: number;
+  valueRupees: number;
+}
+
+export interface AdminLogistics {
+  shipments: number;
+  vehiclesDispatched: number;
+  optimisedCostRupees: number;
+  /** What separate round trips would have cost — the headline baseline. */
+  baselineCostRupees: number;
+  savedRupees: number;
+  savedPercent: number;
+}
+
+export interface AdminChainStatusRow {
+  status: ContractStatus;
+  count: number;
+}
+
+export interface AdminChain {
+  configured: boolean;
+  contracts: AdminChainStatusRow[];
+  /** Transitions the chain refused or could not be reached for. */
+  degradedEvents: number;
+  escrowLockedRupees: number;
+}
+
+export type AdminAlertSeverity = "critical" | "warning";
+
+/**
+ * Something an operator needs to act on.
+ *
+ * These are derived by checking the data against itself rather than read from
+ * a status column — an order that says SETTLED while no farmer was paid is
+ * exactly the kind of silent failure a status column cannot report.
+ */
+export interface AdminAlert {
+  severity: AdminAlertSeverity;
+  code: string;
+  title: string;
+  detail: string;
+  orderId?: string;
+  orderNo?: string;
+}
+
+export interface AdminOrderRow {
+  id: string;
+  orderNo: string;
+  status: OrderStatus;
+  buyerName: string;
+  quintals: number;
+  pricePerQuintal: number;
+  grossRupees: number;
+  farmers: number;
+  settlements: number;
+  createdAt: string;
+}
+
+export interface AdminServiceHealth {
+  name: string;
+  target: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface AdminOverview {
+  generatedAt: string;
+  impact: AdminImpact;
+  network: AdminNetwork;
+  pipeline: AdminPipelineRow[];
+  logistics: AdminLogistics;
+  chain: AdminChain;
+  alerts: AdminAlert[];
+  recentOrders: AdminOrderRow[];
+  services: AdminServiceHealth[];
+  assumptions: SettlementAssumptions;
+}
+
+export type KycStatus = "NOT_STARTED" | "PENDING" | "VERIFIED" | "REJECTED";
+
+/** One row of the admin farmer directory. Earnings are summed from settlements. */
+export interface AdminFarmerRow {
+  id: string;
+  name: string;
+  phone: string;
+  village: string;
+  district: string;
+  farmSizeAcres: number;
+  rating: number;
+  completedOrders: number;
+  kycStatus: KycStatus;
+  activeListings: number;
+  listedQuintals: number;
+  soldQuintals: number;
+  earnedRupees: number;
+  gainRupees: number;
+}
+
+export interface AdminListingRow {
+  id: string;
+  farmerId: string;
+  farmerName: string;
+  village: string;
+  crop: string;
+  grade: Grade;
+  quantityQuintals: number;
+  reservedQuintals: number;
+  expectedPricePerQuintal: number;
+  status: ListingStatus;
+  availableFrom: string;
+  createdAt: string;
+}
+
+/** A farmer's share of one order, as operations needs to see it. */
+export interface AdminAllocationRow {
+  farmerId: string;
+  farmerName: string;
+  village: string;
+  allocatedQuintals: number;
+  pricePerQuintal: number;
+  grossRupees: number;
+  /** Null when no payout has been written for this allocation. */
+  netRupees: number | null;
+  gainRupees: number | null;
+}
+
+export interface AdminOrderDetail {
+  order: AdminOrderRow;
+  grade: Grade;
+  deliveryBy: string;
+  isAggregated: boolean;
+  allocations: AdminAllocationRow[];
+  contract: {
+    contractNo: string;
+    status: ContractStatus;
+    escrowStatus: string | null;
+    amountRupees: number;
+    pdfSha256: string | null;
+    onChainDealId: string | null;
+  } | null;
+  shipment: {
+    status: string;
+    vehicleClass: string;
+    vehicleCount: number;
+    totalDistanceKm: number;
+    optimisedCostRupees: number;
+    naiveCostRupees: number;
+    stops: number;
+  } | null;
+  quality: {
+    status: string;
+    gradeAssessed: Grade | null;
+    moisturePercent: number | null;
+    notes: string | null;
+    checkedAt: string | null;
+  } | null;
+  assumptions: SettlementAssumptions;
+}

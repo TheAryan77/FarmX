@@ -282,3 +282,10 @@ export type PriceQueryInput = z.infer<typeof priceQuerySchema>;
 export function firstFieldError(error: z.ZodError, field: string): string | undefined {
   return error.issues.find((i) => i.path[0] === field)?.message;
 }
+
+/** The only farmer field an operator may change. */
+export const kycStatusSchema = z.object({
+  status: z.enum(["NOT_STARTED", "PENDING", "VERIFIED", "REJECTED"], {
+    error: "Pick a KYC status",
+  }),
+});

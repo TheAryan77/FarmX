@@ -103,6 +103,12 @@ enum EscrowStatus {
   REFUNDED
 }
 
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+}
+
 enum ShipmentStatus {
   PLANNED
   PICKUP_SCHEDULED
@@ -415,9 +421,41 @@ model Contract {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order  Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  events ContractEvent[]
-  escrow Escrow?
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events   ContractEvent[]
+  escrow   Escrow?
+  payments Payment[]
+}
+
+/// A Razorpay funding attempt against a contract.
+///
+/// Test mode only — CLAUDE.md puts real INR escrow out of scope, and no real
+/// money moves. Every attempt is recorded, including failures, so a buyer who
+/// abandoned checkout leaves a trace rather than a silent gap between an order
+/// that says ACCEPTED and a person who thinks they paid.
+model Payment {
+  id         String @id @default(cuid())
+  contractId String
+
+  /// Razorpay's order id (`order_...`). Unique: one open attempt per row.
+  razorpayOrderId   String  @unique
+  /// Set once checkout completes (`pay_...`).
+  razorpayPaymentId String?
+  /// Razorpay works in paise; `amountRupees` is what the rest of FasalX uses.
+  amountRupees      Int
+  /// True when this is a part payment because the order exceeds Razorpay's
+  /// per-transaction ceiling. The UI must say so rather than imply full payment.
+  isAdvance         Boolean @default(false)
+
+  status        PaymentStatus @default(CREATED)
+  failureReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, createdAt])
 }
 
 model ContractEvent {
@@ -477,8 +515,8 @@ model Shipment {
   /// aggregation. The headline saving is measured against this.
   naiveDistanceKm Decimal @db.Decimal(8, 2)
 
-  optimisedCostRupees Int
-  naiveCostRupees     Int
+  optimisedCostRupees  Int
+  naiveCostRupees      Int
   /// Same fleet visiting farms in listed order. Often equal to the optimised
   /// cost on a small clustered order, and reported rather than hidden.
   sequencingCostRupees Int?

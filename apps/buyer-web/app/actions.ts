@@ -4,6 +4,7 @@ import type {
   AggregationProposal,
   AuthUser,
   ChatAnswer,
+  PaymentIntent,
   ContractAction,
   ContractRecord,
   Order,
@@ -16,6 +17,7 @@ import type {
 import {
   aggregateOrderSchema,
   chatAskSchema,
+  confirmPaymentSchema,
   counterOfferSchema,
   createOfferSchema,
   createRequirementSchema,
@@ -396,5 +398,57 @@ export async function askAssistantAction(
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: toMessage(err) };
+  }
+}
+
+// ------------------------------------------------------------------ payments
+
+export async function startPaymentAction(
+  contractId: string,
+): Promise<ActionResult<PaymentIntent>> {
+  try {
+    const data = await apiCall<PaymentIntent>(`/payments/${contractId}/intent`, {
+      method: "POST",
+    });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+export async function confirmPaymentAction(
+  contractId: string,
+  callback: { razorpayOrderId: string; razorpayPaymentId: string; signature: string },
+): Promise<ActionResult<ContractRecord>> {
+  const parsed = confirmPaymentSchema.safeParse(callback);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Incomplete payment details" };
+  }
+
+  try {
+    const data = await apiCall<ContractRecord>(`/payments/${contractId}/confirm`, {
+      method: "POST",
+      body: parsed.data,
+    });
+    revalidatePath(`/orders/${data.orderId}`);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: toMessage(err) };
+  }
+}
+
+/** Best-effort bookkeeping; a failure to record a failure must not surface. */
+export async function failPaymentAction(
+  contractId: string,
+  razorpayOrderId: string,
+  reason: string,
+): Promise<void> {
+  try {
+    await apiCall(`/payments/${contractId}/failed`, {
+      method: "POST",
+      body: { razorpayOrderId, reason },
+    });
+  } catch {
+    // Intentionally silent.
   }
 }

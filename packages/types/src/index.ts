@@ -966,3 +966,23 @@ export interface ChatAnswer {
    */
   offline: boolean;
 }
+
+// ----------------------------------------------------------------- payments
+
+export type PaymentStatus = "CREATED" | "PAID" | "FAILED";
+
+/** What the browser needs to open Razorpay checkout. Never the key secret. */
+export interface PaymentIntent {
+  razorpayOrderId: string;
+  /** Public key id — safe in the browser, unlike the secret. */
+  keyId: string;
+  /** What is actually being charged now, whole rupees. */
+  amountRupees: number;
+  /** The contract's full value, for comparison when this is an advance. */
+  contractAmountRupees: number;
+  /** True when Razorpay's per-order ceiling forced a part payment. */
+  isAdvance: boolean;
+  advanceRate: number;
+  maxSinglePaymentRupees: number;
+  contractNo: string;
+}

@@ -37,6 +37,12 @@ const envSchema = z.object({
   CHAIN_NAME: z.string().default("Hardhat local"),
   CHAIN_EXPLORER_URL: z.string().default(""),
   ESCROW_CONTRACT_ADDRESS: z.string().default(""),
+
+  // Razorpay test mode. Empty in a checkout with no credentials — the payment
+  // routes then report themselves unconfigured rather than the API failing to
+  // boot.
+  RAZORPAY_KEY_ID: z.string().default(""),
+  RAZORPAY_KEY_SECRET: z.string().default(""),
   PLATFORM_PRIVATE_KEY: z.string().default(""),
   BUYER_PRIVATE_KEY: z.string().default(""),
   SETTLEMENT_ADDRESS: z.string().default(""),

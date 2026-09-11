@@ -7,6 +7,7 @@ import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitl
 
 import { contractActionRequest, createContractAction } from "@/app/actions";
 import { rupees } from "@/lib/format";
+import { FundButton } from "./fund-button";
 import {
   CONTRACT_SEQUENCE,
   CONTRACT_STATE,
@@ -264,6 +265,11 @@ export function ContractPanel({
               >
                 {pending ? "Working…" : next.label}
               </Button>
+            ) : null}
+            {/* Funding goes through Razorpay; the escrow locks only after the
+                signature verifies server-side. */}
+            {contract.status === "ACCEPTED" ? (
+              <FundButton contractId={contract.id} amountRupees={contract.amountRupees} />
             ) : null}
             {/* Says where the next step lives, rather than ending in silence. */}
             {handoff ? (

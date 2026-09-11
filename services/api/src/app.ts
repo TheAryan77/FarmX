@@ -14,6 +14,7 @@ import { marketRouter } from "./routes/market.routes.js";
 import { matchingRouter } from "./routes/matching.routes.js";
 import { offerRouter } from "./routes/offer.routes.js";
 import { orderRouter } from "./routes/order.routes.js";
+import { paymentRouter } from "./routes/payment.routes.js";
 import { qualityRouter } from "./routes/quality.routes.js";
 import { requirementRouter } from "./routes/requirement.routes.js";
 import { settlementRouter } from "./routes/settlement.routes.js";
@@ -46,6 +47,7 @@ export function createApp(): Express {
   app.use("/market", marketRouter);
   app.use("/matching", matchingRouter);
   app.use("/requirements", requirementRouter);
+  app.use("/payments", paymentRouter);
   app.use("/quality", qualityRouter);
   app.use("/settlements", settlementRouter);
   app.use("/offers", offerRouter);

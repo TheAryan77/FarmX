@@ -301,3 +301,15 @@ export const chatAskSchema = z.object({
 });
 
 export type ChatAskInput = z.infer<typeof chatAskSchema>;
+
+/** The Razorpay checkout callback, as the browser hands it back. */
+export const confirmPaymentSchema = z.object({
+  razorpayOrderId: z.string({ error: "Missing payment order" }).min(1, "Missing payment order"),
+  razorpayPaymentId: z.string({ error: "Missing payment id" }).min(1, "Missing payment id"),
+  signature: z.string({ error: "Missing signature" }).min(1, "Missing signature"),
+});
+
+export const failPaymentSchema = z.object({
+  razorpayOrderId: z.string({ error: "Missing payment order" }).min(1, "Missing payment order"),
+  reason: z.string().trim().max(200).default("Checkout was not completed"),
+});

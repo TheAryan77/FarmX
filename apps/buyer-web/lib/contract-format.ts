@@ -71,10 +71,9 @@ export const CONTRACT_STATE: Record<
  * rather than the UI politely declining to press a button that still works.
  */
 export const NEXT_ACTION: Partial<
-  Record<ContractStatus, { action: "accept" | "fund" | "pickup" | "deliver"; label: string }>
+  Record<ContractStatus, { action: "accept" | "pickup" | "deliver"; label: string }>
 > = {
   CREATED: { action: "accept", label: "Sign contract" },
-  ACCEPTED: { action: "fund", label: "Fund escrow" },
   FUNDED: { action: "pickup", label: "Confirm pickup" },
   PICKED_UP: { action: "deliver", label: "Confirm delivery" },
 };

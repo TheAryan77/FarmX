@@ -60,17 +60,24 @@ contractRouter.get<{ id: string }>("/:id/pdf", requireAuth, async (req, res) => 
 });
 
 /**
- * One route per escrow transition — but deliberately **not** `approve-quality`
- * or `release`.
+ * One route per escrow transition — but deliberately **not** `fund`,
+ * `approve-quality` or `release`.
  *
- * Those two are reachable only through `POST /quality/:id/approve`, because
- * that is the only path that writes the farmers' payouts. Exposing them here
- * let an operator walk the escrow to RELEASED from the contract panel, which
- * marked the order SETTLED while paying nobody — the farmer's earnings screen
- * stayed empty and nothing said so. The service still performs both
- * transitions; it just no longer accepts instructions to do them out of band.
+ * Each of those is reachable through exactly one path, because each has
+ * something that must happen alongside it:
+ *
+ * - `fund` only via `POST /payments/:contractId/confirm`, which locks the
+ *   escrow only after a Razorpay signature verifies. A bare fund route would
+ *   let the escrow read FUNDED for a payment nobody made.
+ * - `approve-quality` and `release` only via `POST /quality/:id/approve`,
+ *   which is the only path that writes the farmers' payouts. Exposing them
+ *   here let an operator walk the escrow to RELEASED from the contract panel,
+ *   marking the order SETTLED while paying nobody.
+ *
+ * The service still performs all three transitions; it just no longer accepts
+ * instructions to do them out of band.
  */
-for (const action of ["accept", "fund", "pickup", "deliver"] as const) {
+for (const action of ["accept", "pickup", "deliver"] as const) {
   contractRouter.post<{ id: string }>(`/:id/${action}`, requireAuth, async (req, res) => {
     const { sub, role } = req.auth!;
     res.json({ data: await transitionContract(req.params.id, sub, role, action) });

@@ -43,6 +43,14 @@ const envSchema = z.object({
   // boot.
   RAZORPAY_KEY_ID: z.string().default(""),
   RAZORPAY_KEY_SECRET: z.string().default(""),
+  /**
+   * Largest single payment to attempt. Razorpay caps order creation at
+   * ₹5,00,000, but individual methods cap lower — wallets at ₹10,000 for a
+   * non-KYC merchant — so this is tunable per account.
+   */
+  RAZORPAY_MAX_RUPEES: z.coerce.number().int().positive().default(500_000),
+  /** Fraction collected up front when an order exceeds the ceiling. */
+  RAZORPAY_ADVANCE_RATE: z.coerce.number().gt(0).max(1).default(0.1),
   PLATFORM_PRIVATE_KEY: z.string().default(""),
   BUYER_PRIVATE_KEY: z.string().default(""),
   SETTLEMENT_ADDRESS: z.string().default(""),

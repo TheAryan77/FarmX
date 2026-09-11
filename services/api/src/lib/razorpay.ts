@@ -19,18 +19,27 @@ import { HttpError } from "./errors.js";
 const API = "https://api.razorpay.com/v1";
 
 /**
- * Razorpay refuses a single order above ₹5,00,000. Measured, not assumed:
- * 50,000,000 paise is accepted and 50,000,001 is rejected with
- * "Amount exceeds maximum amount allowed."
+ * The largest single payment this account will actually accept.
  *
- * The demo's aggregated order is ₹12,10,000, so it cannot be charged whole.
- * Rather than quietly charging less than the screen says, anything above the
- * ceiling is collected as a labelled advance — see `fundingAmount` below.
+ * Two different ceilings are at play and they are easy to confuse:
+ *
+ *  - **Order creation** caps at ₹5,00,000. Measured, not assumed: 50,000,000
+ *    paise is accepted and 50,000,001 is rejected with "Amount exceeds
+ *    maximum amount allowed."
+ *  - **Individual payment methods** cap lower, and the order being valid does
+ *    not mean the method will take it. Razorpay documents cards and netbanking
+ *    at ₹5,00,000, UPI at ₹1,00,000, and wallets at ₹10,000 for a non-KYC
+ *    merchant — so a perfectly valid ₹48,600 order is refused at the wallet
+ *    step with the same message.
+ *
+ * So this is configurable rather than hardcoded: set RAZORPAY_MAX_RUPEES to
+ * whatever the account and the intended method actually allow. Lowering it
+ * does not break anything — it just means more orders fund by advance.
  */
-export const RAZORPAY_MAX_RUPEES = 500_000;
+export const RAZORPAY_MAX_RUPEES = env.RAZORPAY_MAX_RUPEES;
 
 /** Share of the order collected up front when the total exceeds the ceiling. */
-export const ADVANCE_RATE = 0.1;
+export const ADVANCE_RATE = env.RAZORPAY_ADVANCE_RATE;
 
 export interface FundingAmount {
   rupees: number;

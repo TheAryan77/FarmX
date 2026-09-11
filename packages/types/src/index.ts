@@ -971,6 +971,13 @@ export interface ChatAnswer {
 
 export type PaymentStatus = "CREATED" | "PAID" | "FAILED";
 
+/** Whether payments are usable, and the limits the UI must respect. */
+export interface PaymentSettings {
+  configured: boolean;
+  maxSinglePaymentRupees: number;
+  advanceRate: number;
+}
+
 /** What the browser needs to open Razorpay checkout. Never the key secret. */
 export interface PaymentIntent {
   razorpayOrderId: string;

@@ -59,9 +59,13 @@ function loadCheckout(): Promise<void> {
 export function FundButton({
   contractId,
   amountRupees,
+  maxSinglePaymentRupees,
+  advanceRate,
 }: {
   contractId: string;
   amountRupees: number;
+  maxSinglePaymentRupees: number;
+  advanceRate: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -148,17 +152,22 @@ export function FundButton({
   }
 
   const working = pending || busy;
-  const isAdvance = amountRupees > 500_000;
+  // Mirrors fundingAmount() on the server, from the same numbers it uses.
+  const isAdvance = amountRupees > maxSinglePaymentRupees;
+  const charge = isAdvance
+    ? Math.min(Math.round(amountRupees * advanceRate), maxSinglePaymentRupees)
+    : amountRupees;
 
   return (
     <div className="space-y-2">
       <Button onClick={fund} disabled={working}>
-        {working ? "Opening payment…" : `Pay ${rupees(isAdvance ? Math.round(amountRupees * 0.1) : amountRupees)} to fund escrow`}
+        {working ? "Opening payment…" : `Pay ${rupees(charge)} to fund escrow`}
       </Button>
       {isAdvance ? (
         <p className="text-xs text-muted-foreground">
-          10% advance — Razorpay caps a single payment at {rupees(500_000)} and this order is{" "}
-          {rupees(amountRupees)}. The balance settles on delivery.
+          {Math.round(advanceRate * 100)}% advance — a single payment is capped at{" "}
+          {rupees(maxSinglePaymentRupees)} and this order is {rupees(amountRupees)}. The balance
+          settles on delivery.
         </p>
       ) : null}
       {note ? <p className="text-sm font-medium text-success">{note}</p> : null}

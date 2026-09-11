@@ -2,6 +2,7 @@ import type {
   AuthUser,
   ContractRecord,
   Order,
+  PaymentSettings,
   QualityCheck,
   SettlementView,
   Shipment,
@@ -34,8 +35,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   let shipment: Shipment | null = null;
   let quality: QualityCheck | null = null;
   let settlements: SettlementView | null = null;
+  let payments: PaymentSettings | null = null;
   try {
-    [user, order, contract, shipment, quality, settlements] = await Promise.all([
+    [user, order, contract, shipment, quality, settlements, payments] = await Promise.all([
       apiCall<AuthUser>("/auth/me"),
       apiCall<Order>(`/orders/${id}`),
       // Missing contract, shipment, QC or settlement is all normal — each is
@@ -44,6 +46,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       apiCall<Shipment | null>(`/logistics/for-order/${id}`).catch(() => null),
       apiCall<QualityCheck | null>(`/quality/for-order/${id}`).catch(() => null),
       apiCall<SettlementView | null>(`/settlements/for-order/${id}`).catch(() => null),
+      // Limits come from the API so the fund button cannot disagree with what
+      // the server will actually charge.
+      apiCall<PaymentSettings>("/payments/status").catch(() => null),
     ]);
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) redirect("/login");
@@ -137,6 +142,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         key={`contract-${contract?.id ?? "none"}-${contract?.status ?? "none"}`}
         orderId={order.id}
         contract={contract}
+        payments={payments}
       />
 
       <LogisticsPanel

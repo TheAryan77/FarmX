@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { ContractAction, ContractRecord } from "@fasalx/types";
+import type { ContractAction, ContractRecord, PaymentSettings } from "@fasalx/types";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "@fasalx/ui";
 
 import { contractActionRequest, createContractAction } from "@/app/actions";
@@ -27,9 +27,11 @@ import {
 export function ContractPanel({
   orderId,
   contract: initial,
+  payments,
 }: {
   orderId: string;
   contract: ContractRecord | null;
+  payments: PaymentSettings | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -268,8 +270,19 @@ export function ContractPanel({
             ) : null}
             {/* Funding goes through Razorpay; the escrow locks only after the
                 signature verifies server-side. */}
-            {contract.status === "ACCEPTED" ? (
-              <FundButton contractId={contract.id} amountRupees={contract.amountRupees} />
+            {contract.status === "ACCEPTED" && payments?.configured ? (
+              <FundButton
+                contractId={contract.id}
+                amountRupees={contract.amountRupees}
+                maxSinglePaymentRupees={payments.maxSinglePaymentRupees}
+                advanceRate={payments.advanceRate}
+              />
+            ) : null}
+            {contract.status === "ACCEPTED" && payments && !payments.configured ? (
+              <p className="text-sm text-muted-foreground">
+                Payments are not configured — set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET
+                in .env to fund this escrow.
+              </p>
             ) : null}
             {/* Says where the next step lives, rather than ending in silence. */}
             {handoff ? (

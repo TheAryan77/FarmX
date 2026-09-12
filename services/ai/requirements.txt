@@ -4,7 +4,8 @@
 
 fastapi==0.116.1
 uvicorn[standard]==0.35.0
-pydantic==2.11.7
+# google-genai needs >=2.12.5; this is the version the service is verified on.
+pydantic==2.13.5
 pydantic-settings==2.10.1
 python-dotenv==1.1.1
 
